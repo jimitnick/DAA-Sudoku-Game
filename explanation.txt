@@ -1,0 +1,35 @@
+Step-by-Step Execution of the AI Move Logic
+
+When the function ai_make_move is invoked, the AI executes the following sequence of operations to determine its next move:
+
+Board Scanning
+The AI systematically scans all 81 cells of the Sudoku board. For each empty cell, it computes the set of valid candidates by analyzing three constraints:
+
+The corresponding row
+
+The corresponding column
+
+The associated 3×3 subgrid
+Only numbers that do not violate these constraints are included in the candidate set.
+
+Priority Assignment
+Each empty cell, along with the size of its candidate set, is inserted into a priority queue implemented using heapq. Cells with fewer valid candidates are assigned higher priority. For example, a cell with two possible values is prioritized over a cell with four possible values.
+
+Cell Selection
+The AI extracts the highest-priority entry from the heap using heapq.heappop. This guarantees selection of the cell with the minimum number of valid options, following the Minimum Remaining Values (MRV) heuristic.
+
+Value Commitment
+From the selected cell’s candidate set, the AI randomly chooses one valid number using random.choice and places it on the board.
+
+Constraint Propagation
+Once a value is placed, the constraints affecting the corresponding row, column, and subgrid are implicitly updated. These updated constraints are taken into account during the next invocation of ai_make_move, when candidate sets are recomputed.
+
+Algorithmic Characteristics and Limitations
+
+This approach is based on a Greedy algorithm, not a Backtracking algorithm, which leads to the following characteristics:
+
+No Lookahead
+The AI makes decisions based solely on the current board state. It does not evaluate whether a chosen value may lead to an unsolvable configuration in later steps.
+
+No Backtracking (Undo Mechanism)
+If a move results in a dead-end situation—where at least one empty cell has zero valid candidates—the AI does not revert previous moves. In such cases, the algorithm terminates and reports that no valid move can be made.
