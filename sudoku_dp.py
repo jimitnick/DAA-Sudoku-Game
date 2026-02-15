@@ -290,8 +290,6 @@ class SudokuDuel:
             if self.is_complete():
                 self.game_over = True
                 messagebox.showinfo("Game Over", "You Win!")
-            else:
-                self.ai_turn()
 
         except ValueError:
             cell.delete(0, tk.END)
