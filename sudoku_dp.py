@@ -4,6 +4,13 @@ import heapq
 import random
 import copy
 
+"""
+TODO
+1. Implement the MRV heuristics
+2. Implement the solution where the AI finds incremental solution rather than filling empty cells from comparing the solution
+3. There is no guarantee for uniqueness
+"""
+
 class SudokuDuel:
     def __init__(self, root):
         self.root = root
@@ -290,7 +297,8 @@ class SudokuDuel:
             if self.is_complete():
                 self.game_over = True
                 messagebox.showinfo("Game Over", "You Win!")
-
+            else:
+                self.ai_turn()
         except ValueError:
             cell.delete(0, tk.END)
 
