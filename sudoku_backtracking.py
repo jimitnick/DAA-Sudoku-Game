@@ -1,7 +1,8 @@
 import customtkinter as ctk
 from tkinter import messagebox
-from tktooltip import ToolTip
+from TkToolTip import ToolTip
 import copy
+from sudoku_analysis import open_analysis_window
 
 
 COLORS = {
@@ -159,7 +160,7 @@ class SudokuDuel:
         btn_frame = ctk.CTkFrame(self.root, fg_color="transparent")
         btn_frame.pack(pady=(14, 6))
         buttons = [
-            ("  NEW GAME",  self.new_game,       COLORS["accent_green"],  "Start a fresh puzzle"),("  HINT",      self.show_hint,      COLORS["accent_blue"],   "Get a hint for the next move"),("  AI PLAY",   self.ai_play_button, COLORS["accent_red"],    "Let the AI make a move"),("  RESET",     self.reset_board,    COLORS["accent_orange"], "Reset to the starting state"),
+            ("  NEW GAME",  self.new_game,       COLORS["accent_green"],  "Start a fresh puzzle"),("  HINT",      self.show_hint,      COLORS["accent_blue"],   "Get a hint for the next move"),("  AI PLAY",   self.ai_play_button, COLORS["accent_red"],    "Let the AI make a move"),("  RESET",     self.reset_board,    COLORS["accent_orange"], "Reset to the starting state"),("📊 ANALYSIS", lambda: open_analysis_window(self.root), COLORS["accent_purple"], "Benchmark & compare all algorithms"),
         ]
         for idx, (text, cmd, color, tip) in enumerate(buttons):
             btn = ctk.CTkButton(
