@@ -1,7 +1,289 @@
 import customtkinter as ctk
 from tkinter import messagebox
-from tktooltip import ToolTip
+from TkToolTip import ToolTip
 import copy
+import heapq
+from sudoku_analysis import open_analysis_window
+
+
+class BitmaskSolver:
+
+    def __init__(self):
+        self.rows = [0] * 9
+        self.cols = [0] * 9
+        self.boxes = [0] * 9
+
+    def _get_box_index(self, r, c):
+        return (r // 3) * 3 + (c // 3)
+
+    def _initialize_masks(self, board):
+        self.rows = [0] * 9
+        self.cols = [0] * 9
+        self.boxes = [0] * 9
+        empty_cells = []
+        for r in range(9):
+            for c in range(9):
+                if board[r][c] != 0:
+                    val = board[r][c] - 1
+                    mask = (1 << val)
+                    self.rows[r] |= mask
+                    self.cols[c] |= mask
+                    self.boxes[self._get_box_index(r, c)] |= mask
+                else:
+                    empty_cells.append((r, c))
+        return empty_cells
+
+    def solve(self, board):
+        empty_cells = self._initialize_masks(board)
+        empty_cells.sort(key=lambda cell: self._count_options(cell[0], cell[1]))
+        if self._backtrack(board, empty_cells, 0):
+            return board
+        return None
+
+    def count_solutions(self, board, limit=2):
+        self._initialize_masks(board)
+        empty_cells = [(r, c) for r in range(9) for c in range(9) if board[r][c] == 0]
+        return self._backtrack_count(board, empty_cells, 0, limit)
+
+    def _count_options(self, r, c):
+        box_idx = self._get_box_index(r, c)
+        taken = self.rows[r] | self.cols[c] | self.boxes[box_idx]
+        options = 0
+        for k in range(9):
+            if not (taken & (1 << k)):
+                options += 1
+        return options
+
+    def _backtrack(self, board, empty_cells, idx):
+        if idx == len(empty_cells):
+            return True
+
+        r, c = empty_cells[idx]
+        box_idx = self._get_box_index(r, c)
+        taken = self.rows[r] | self.cols[c] | self.boxes[box_idx]
+
+        for k in range(9):
+            mask = 1 << k
+            if not (taken & mask):
+                board[r][c] = k + 1
+                self.rows[r] |= mask
+                self.cols[c] |= mask
+                self.boxes[box_idx] |= mask
+
+                if self._backtrack(board, empty_cells, idx + 1):
+                    return True
+
+                self.rows[r] &= ~mask
+                self.cols[c] &= ~mask
+                self.boxes[box_idx] &= ~mask
+                board[r][c] = 0
+        return False
+
+    def _backtrack_count(self, board, empty_cells, idx, limit):
+        if idx == len(empty_cells):
+            return 1
+        r, c = empty_cells[idx]
+        box_idx = self._get_box_index(r, c)
+        taken = self.rows[r] | self.cols[c] | self.boxes[box_idx]
+        count = 0
+        for k in range(9):
+            mask = 1 << k
+            if not (taken & mask):
+                board[r][c] = k + 1
+                self.rows[r] |= mask
+                self.cols[c] |= mask
+                self.boxes[box_idx] |= mask
+                count += self._backtrack_count(board, empty_cells, idx + 1, limit)
+                self.rows[r] &= ~mask
+                self.cols[c] &= ~mask
+                self.boxes[box_idx] &= ~mask
+                board[r][c] = 0
+                if count >= limit:
+                    return count
+        return count
+
+
+def _standalone_is_valid(board, row, col, num):
+    for i in range(9):
+        if board[row][i] == num and i != col:
+            return False
+        if board[i][col] == num and i != row:
+            return False
+    br, bc = 3 * (row // 3), 3 * (col // 3)
+    for i in range(br, br + 3):
+        for j in range(bc, bc + 3):
+            if board[i][j] == num and (i, j) != (row, col):
+                return False
+    return True
+
+
+def _standalone_get_candidates(board, row, col):
+    if board[row][col] != 0:
+        return set()
+    candidates = set(range(1, 10))
+    candidates -= set(board[row])
+    candidates -= {board[i][col] for i in range(9)}
+    br, bc = 3 * (row // 3), 3 * (col // 3)
+    for i in range(br, br + 3):
+        for j in range(bc, bc + 3):
+            candidates.discard(board[i][j])
+    return candidates
+
+
+def solve_greedy_standalone(board):
+    board = copy.deepcopy(board)
+    while True:
+        pq = []
+        for r in range(9):
+            for c in range(9):
+                if board[r][c] == 0:
+                    cands = _standalone_get_candidates(board, r, c)
+                    if not cands:
+                        return None
+                    heapq.heappush(pq, (len(cands), r, c, cands))
+        if not pq:
+            return board
+        _, r, c, cands = heapq.heappop(pq)
+        cands = _standalone_get_candidates(board, r, c)
+        if not cands:
+            return None
+        board[r][c] = min(cands)
+    return board
+
+
+def solve_dnc_standalone(board):
+    board = copy.deepcopy(board)
+    return _dnc_helper(board)
+
+def _dnc_helper(board):
+    best_cell = None
+    best_candidates = None
+    min_count = 10
+    for r in range(9):
+        for c in range(9):
+            if board[r][c] == 0:
+                cands = _standalone_get_candidates(board, r, c)
+                cnt = len(cands)
+                if cnt == 0:
+                    return None
+                if cnt < min_count:
+                    min_count = cnt
+                    best_cell = (r, c)
+                    best_candidates = cands
+                    if cnt == 1:
+                        break
+        if min_count == 1:
+            break
+    if best_cell is None:
+        return board
+    row, col = best_cell
+    for val in best_candidates:
+        board[row][col] = val
+        result = _dnc_helper(board)
+        if result is not None:
+            return result
+        board[row][col] = 0
+    return None
+
+
+def solve_dp_standalone(board):
+    board = copy.deepcopy(board)
+    rows = [0] * 9; cols = [0] * 9; boxes = [0] * 9
+    empty = []
+    for r in range(9):
+        for c in range(9):
+            if board[r][c] != 0:
+                mask = 1 << (board[r][c] - 1)
+                rows[r] |= mask; cols[c] |= mask
+                boxes[(r // 3) * 3 + c // 3] |= mask
+            else:
+                empty.append((r, c))
+
+    def count_opts(r, c):
+        taken = rows[r] | cols[c] | boxes[(r // 3) * 3 + c // 3]
+        return bin(~taken & 0x1ff).count('1')
+
+    empty.sort(key=lambda cell: count_opts(cell[0], cell[1]))
+
+    def bt(idx):
+        if idx == len(empty):
+            return True
+        r, c = empty[idx]
+        bi = (r // 3) * 3 + c // 3
+        taken = rows[r] | cols[c] | boxes[bi]
+        for k in range(9):
+            m = 1 << k
+            if not (taken & m):
+                board[r][c] = k + 1
+                rows[r] |= m; cols[c] |= m; boxes[bi] |= m
+                if bt(idx + 1):
+                    return True
+                rows[r] &= ~m; cols[c] &= ~m; boxes[bi] &= ~m
+                board[r][c] = 0
+        return False
+
+    return board if bt(0) else None
+
+
+def solve_backtracking_standalone(board):
+    board = copy.deepcopy(board)
+    rows = [0] * 9; cols = [0] * 9; boxes = [0] * 9
+    empty = []
+    for r in range(9):
+        for c in range(9):
+            if board[r][c] != 0:
+                mask = 1 << (board[r][c] - 1)
+                rows[r] |= mask; cols[c] |= mask
+                boxes[(r // 3) * 3 + c // 3] |= mask
+            else:
+                empty.append((r, c))
+
+    def count_opts(r, c):
+        taken = rows[r] | cols[c] | boxes[(r // 3) * 3 + c // 3]
+        return bin(~taken & 0x1ff).count('1')
+
+    empty.sort(key=lambda cell: count_opts(cell[0], cell[1]))
+
+    def bt(idx):
+        if idx == len(empty):
+            return True
+        r, c = empty[idx]
+        bi = (r // 3) * 3 + c // 3
+        taken = rows[r] | cols[c] | boxes[bi]
+        for k in range(9):
+            m = 1 << k
+            if not (taken & m):
+                board[r][c] = k + 1
+                rows[r] |= m; cols[c] |= m; boxes[bi] |= m
+                if bt(idx + 1):
+                    return True
+                rows[r] &= ~m; cols[c] &= ~m; boxes[bi] &= ~m
+                board[r][c] = 0
+        return False
+
+    return board if bt(0) else None
+
+
+def solve_hybrid_standalone(board):
+    board = copy.deepcopy(board)
+    for br in range(0, 9, 3):
+        for bc in range(0, 9, 3):
+            for r in range(br, br + 3):
+                for c in range(bc, bc + 3):
+                    if board[r][c] == 0:
+                        cands = _standalone_get_candidates(board, r, c)
+                        if len(cands) == 1:
+                            board[r][c] = cands.pop()
+    return solve_dp_standalone(board)
+
+
+BENCHMARK_SOLVERS = {
+    "Greedy":           solve_greedy_standalone,
+    "Divide & Conquer": solve_dnc_standalone,
+    "DP (Bitmask)":     solve_dp_standalone,
+    "Backtracking":     solve_backtracking_standalone,
+    "Hybrid (D&C+DP)":  solve_hybrid_standalone,
+}
 
 
 COLORS = {
@@ -19,6 +301,7 @@ FONT_SMALL =("Segoe UI", 10)
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
+
 class SudokuDuel:
     def __init__(self, root):
         self.root = root
@@ -27,7 +310,6 @@ class SudokuDuel:
         self.root.configure(fg_color=COLORS["bg_dark"])
         self.root.resizable(False, False)
 
-        # Game state
         self.board = [[0] * 9 for _ in range(9)]
         self.initial_board = [[0] * 9 for _ in range(9)]
         self.solution_board = [[0] * 9 for _ in range(9)]
@@ -159,7 +441,7 @@ class SudokuDuel:
         btn_frame = ctk.CTkFrame(self.root, fg_color="transparent")
         btn_frame.pack(pady=(14, 6))
         buttons = [
-            ("  NEW GAME",  self.new_game,       COLORS["accent_green"],  "Start a fresh puzzle"),("  HINT",      self.show_hint,      COLORS["accent_blue"],   "Get a hint for the next move"),("  AI PLAY",   self.ai_play_button, COLORS["accent_red"],    "Let the AI make a move"),("  RESET",     self.reset_board,    COLORS["accent_orange"], "Reset to the starting state"),
+            ("  NEW GAME",  self.new_game,       COLORS["accent_green"],  "Start a fresh puzzle"),("  HINT",      self.show_hint,      COLORS["accent_blue"],   "Get a hint for the next move"),("  AI PLAY",   self.ai_play_button, COLORS["accent_red"],    "Let the AI make a move"),("  RESET",     self.reset_board,    COLORS["accent_orange"], "Reset to the starting state"),("📊 ANALYSIS", lambda: open_analysis_window(self.root), COLORS["accent_purple"], "Benchmark & compare all algorithms"),
         ]
         for idx, (text, cmd, color, tip) in enumerate(buttons):
             btn = ctk.CTkButton(
@@ -191,22 +473,12 @@ class SudokuDuel:
         strict_check.pack(pady=(8, 4))
         ToolTip(strict_check, msg="Only allow correct solution values", delay=0.4)
 
-        
-
-
-    # Helpers
-
     @staticmethod
     def _darken(hex_color, factor=0.75):
-        """Return a darker shade of the given hex colour."""
         hex_color = hex_color.lstrip("#")
         r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         r, g, b = int(r * factor), int(g * factor), int(b * factor)
         return f"#{r:02x}{g:02x}{b:02x}"
-
-    # --------------------------------------------------
-    # Stub Methods (logic removed)
-    # --------------------------------------------------
 
     def _update_status(self):
         self.status_label.configure(
