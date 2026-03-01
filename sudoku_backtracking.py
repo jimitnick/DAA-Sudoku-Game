@@ -287,6 +287,102 @@ BENCHMARK_SOLVERS = {
 
 from sudoku_analysis import open_analysis_window
 
+def get_candidates(board, row, col):
+    """Return the set of valid digits for the given cell."""
+    if board[row][col] != 0:
+        return set()
+    candidates = set(range(1, 10))
+    candidates -= set(board[row])
+    candidates -= {board[i][col] for i in range(9)}
+    br, bc = 3 * (row // 3), 3 * (col // 3)
+    for i in range(br, br + 3):
+        for j in range(bc, bc + 3):
+            candidates.discard(board[i][j])
+    return candidates
+
+
+def is_valid(board, row, col, num):
+    """Check whether placing ⁠ num ⁠ at (row, col) violates Sudoku rules."""
+    for i in range(9):
+        if board[row][i] == num and i != col:
+            return False
+        if board[i][col] == num and i != row:
+            return False
+    br, bc = 3 * (row // 3), 3 * (col // 3)
+    for i in range(br, br + 3):
+        for j in range(bc, bc + 3):
+            if board[i][j] == num and (i, j) != (row, col):
+                return False
+    return True
+
+
+def solve_with_backtracking(board_snapshot):
+    """Wrapper that invokes BitmaskSolver on a deep-copied board."""
+    solver = BitmaskSolver()
+    board_copy = copy.deepcopy(board_snapshot)
+    return solver.solve(board_copy)
+
+
+# ---------- Benchmarking engine ----------
+
+ALGO_METADATA = [
+    {
+        "key": "greedy", "name": "Greedy (Priority Queue)",
+        "desc": "Selects the most constrained cell using a\nmin-heap (MRV heuristic). Makes greedy\nchoices without lookahead or backtracking.",
+        "time": "Time:  O(n² log n)  per move", "space": "Space: O(n²)",
+        "tag": "No Backtracking",
+    },
+    {
+        "key": "dnc", "name": "Divide & Conquer",
+        "desc": "Recursively divides the problem by choosing\nthe most constrained cell (MRV), tries each\ncandidate, and conquers sub-problems.",
+        "time": "Time:  O(9^n)  worst case", "space": "Space: O(n)   recursion stack",
+        "tag": "Recursive Split",
+    },
+    {
+        "key": "dp", "name": "Dynamic Programming (Bitmask)",
+        "desc": "Uses bitmask state compression to represent\nconstraints as integers. O(1) validity checks\nvia bitwise operations with MRV ordering.",
+        "time": "Time:  O(9^n)  worst, near-instant practical",
+        "space": "Space: O(n + 27) bitmask arrays", "tag": "State Compression",
+    },
+    {
+        "key": "backtracking", "name": "Backtracking (Bitmask + MRV)",
+        "desc": "Classic recursive backtracking enhanced with\nbitmask optimisation and MRV heuristic for\nefficient constraint checking & pruning.",
+        "time": "Time:  O(9^n)  worst case",
+        "space": "Space: O(n + 27) bitmask arrays", "tag": "Recursive Search",
+    },
+    {
+        "key": "hybrid", "name": "Hybrid (D&C + DP)",
+        "desc": "Two-phase solver: first applies Divide &\nConquer per 3×3 subgrid, then uses DP with\nbitmask to solve remaining cells.",
+        "time": "Time:  O(9^n)  worst, very fast practical",
+        "space": "Space: O(n + 27)", "tag": "Combined Strategy",
+    },
+]
+
+
+def benchmark_all_solvers():
+    """Benchmark all solvers across Easy / Medium / Hard difficulties."""
+    difficulties = {"Easy": 30, "Medium": 45, "Hard": 55}
+    num_trials = 5
+    results = {}
+    for diff_name, holes in difficulties.items():
+        results[diff_name] = {}
+        for solver_name in BENCHMARK_SOLVERS:
+            times = []
+            for _ in range(num_trials):
+                puzzle = generate_benchmark_puzzle(holes)
+                board_copy = copy.deepcopy(puzzle)
+                start = time.perf_counter()
+                BENCHMARK_SOLVERS[solver_name](board_copy)
+                end = time.perf_counter()
+                times.append((end - start) * 1000)
+            results[diff_name][solver_name] = {
+                "avg": sum(times) / len(times),
+                "min": min(times),
+                "max": max(times),
+                "times": times,
+            }
+    return results
+
 
 
 COLORS = {
