@@ -9,123 +9,123 @@ from sudoku_analysis import open_analysis_window
 class BitmaskSolver:
 
     def __init__(self):
-        self.rows = [0] * 9
-        self.cols = [0] * 9
-        self.boxes = [0] * 9
+        self.rows=[0]*9
+        self.cols=[0]*9
+        self.boxes=[0]*9
 
-    def _get_box_index(self, r, c):
-        return (r // 3) * 3 + (c // 3)
+    def _get_box_index(self,r,c):
+        return (r//3)*3+(c//3)
 
-    def _initialize_masks(self, board):
-        self.rows = [0] * 9
-        self.cols = [0] * 9
-        self.boxes = [0] * 9
-        empty_cells = []
+    def _initialize_masks(self,board):
+        self.rows=[0]*9
+        self.cols=[0]*9
+        self.boxes=[0]*9
+        empty_cells=[]
         for r in range(9):
             for c in range(9):
-                if board[r][c] != 0:
-                    val = board[r][c] - 1
-                    mask = (1 << val)
-                    self.rows[r] |= mask
-                    self.cols[c] |= mask
-                    self.boxes[self._get_box_index(r, c)] |= mask
+                if board[r][c]!=0:
+                    val=board[r][c]-1
+                    mask=(1 << val)
+                    self.rows[r]|=mask
+                    self.cols[c]|=mask
+                    self.boxes[self._get_box_index(r, c)]|=mask
                 else:
                     empty_cells.append((r, c))
         return empty_cells
 
-    def solve(self, board):
-        empty_cells = self._initialize_masks(board)
-        empty_cells.sort(key=lambda cell: self._count_options(cell[0], cell[1]))
-        if self._backtrack(board, empty_cells, 0):
+    def solve(self,board):
+        empty_cells=self._initialize_masks(board)
+        empty_cells.sort(key=lambda cell:self._count_options(cell[0],cell[1]))
+        if self._backtrack(board,empty_cells,0):
             return board
         return None
 
-    def count_solutions(self, board, limit=2):
+    def count_solutions(self,board,limit=2):
         self._initialize_masks(board)
-        empty_cells = [(r, c) for r in range(9) for c in range(9) if board[r][c] == 0]
-        return self._backtrack_count(board, empty_cells, 0, limit)
+        empty_cells = [(r, c) for r in range(9) for c in range(9) if board[r][c]==0]
+        return self._backtrack_count(board,empty_cells,0,limit)
 
-    def _count_options(self, r, c):
-        box_idx = self._get_box_index(r, c)
-        taken = self.rows[r] | self.cols[c] | self.boxes[box_idx]
-        options = 0
+    def _count_options(self,r,c):
+        box_idx =self._get_box_index(r,c)
+        taken =self.rows[r] | self.cols[c] | self.boxes[box_idx]
+        options =0
         for k in range(9):
             if not (taken & (1 << k)):
-                options += 1
+                options +=1
         return options
 
     def _backtrack(self, board, empty_cells, idx):
-        if idx == len(empty_cells):
+        if idx ==len(empty_cells):
             return True
 
-        r, c = empty_cells[idx]
-        box_idx = self._get_box_index(r, c)
+        r,c =empty_cells[idx]
+        box_idx =self._get_box_index(r,c)
         taken = self.rows[r] | self.cols[c] | self.boxes[box_idx]
 
         for k in range(9):
             mask = 1 << k
             if not (taken & mask):
-                board[r][c] = k + 1
-                self.rows[r] |= mask
-                self.cols[c] |= mask
-                self.boxes[box_idx] |= mask
+                board[r][c] =k + 1
+                self.rows[r] |=mask
+                self.cols[c] |=mask
+                self.boxes[box_idx] |=mask
 
-                if self._backtrack(board, empty_cells, idx + 1):
+                if self._backtrack(board,empty_cells,idx + 1):
                     return True
 
-                self.rows[r] &= ~mask
-                self.cols[c] &= ~mask
-                self.boxes[box_idx] &= ~mask
-                board[r][c] = 0
+                self.rows[r] &=~mask
+                self.cols[c] &=~mask
+                self.boxes[box_idx] &=~mask
+                board[r][c] =0
         return False
 
-    def _backtrack_count(self, board, empty_cells, idx, limit):
-        if idx == len(empty_cells):
+    def _backtrack_count(self,board,empty_cells,idx,limit):
+        if idx ==len(empty_cells):
             return 1
         r, c = empty_cells[idx]
-        box_idx = self._get_box_index(r, c)
-        taken = self.rows[r] | self.cols[c] | self.boxes[box_idx]
-        count = 0
+        box_idx =self._get_box_index(r, c)
+        taken =self.rows[r] | self.cols[c] | self.boxes[box_idx]
+        count =0
         for k in range(9):
-            mask = 1 << k
+            mask =1 << k
             if not (taken & mask):
-                board[r][c] = k + 1
-                self.rows[r] |= mask
-                self.cols[c] |= mask
-                self.boxes[box_idx] |= mask
-                count += self._backtrack_count(board, empty_cells, idx + 1, limit)
-                self.rows[r] &= ~mask
-                self.cols[c] &= ~mask
-                self.boxes[box_idx] &= ~mask
-                board[r][c] = 0
-                if count >= limit:
+                board[r][c] =k + 1
+                self.rows[r] |=mask
+                self.cols[c] |=mask
+                self.boxes[box_idx] |=mask
+                count += self._backtrack_count(board,empty_cells,idx+1,limit)
+                self.rows[r] &=~mask
+                self.cols[c] &=~mask
+                self.boxes[box_idx] &=~mask
+                board[r][c] =0
+                if count >=limit:
                     return count
         return count
 
 
-def _standalone_is_valid(board, row, col, num):
+def _standalone_is_valid(board,row,col,num):
     for i in range(9):
-        if board[row][i] == num and i != col:
+        if board[row][i] ==num and i !=col:
             return False
-        if board[i][col] == num and i != row:
+        if board[i][col] ==num and i !=row:
             return False
-    br, bc = 3 * (row // 3), 3 * (col // 3)
-    for i in range(br, br + 3):
-        for j in range(bc, bc + 3):
-            if board[i][j] == num and (i, j) != (row, col):
+    br, bc = 3 * (row //3), 3*(col//3)
+    for i in range(br,br + 3):
+        for j in range(bc,bc + 3):
+            if board[i][j] ==num and (i, j) !=(row,col):
                 return False
     return True
 
 
-def _standalone_get_candidates(board, row, col):
-    if board[row][col] != 0:
+def _standalone_get_candidates(board,row,col):
+    if board[row][col]!= 0:
         return set()
-    candidates = set(range(1, 10))
-    candidates -= set(board[row])
-    candidates -= {board[i][col] for i in range(9)}
-    br, bc = 3 * (row // 3), 3 * (col // 3)
-    for i in range(br, br + 3):
-        for j in range(bc, bc + 3):
+    candidates =set(range(1, 10))
+    candidates -=set(board[row])
+    candidates -={board[i][col] for i in range(9)}
+    br, bc = 3*(row // 3), 3*(col // 3)
+    for i in range(br,br + 3):
+        for j in range(bc,bc + 3):
             candidates.discard(board[i][j])
     return candidates
 
@@ -200,16 +200,16 @@ def solve_dp_standalone(board):
                 empty.append((r, c))
 
     def count_opts(r, c):
-        taken = rows[r] | cols[c] | boxes[(r // 3) * 3 + c // 3]
+        taken = rows[r] | cols[c] | boxes[(r//3)*3 + c//3]
         return bin(~taken & 0x1ff).count('1')
 
-    empty.sort(key=lambda cell: count_opts(cell[0], cell[1]))
+    empty.sort(key=lambda cell: count_opts(cell[0],cell[1]))
 
     def bt(idx):
         if idx == len(empty):
             return True
         r, c = empty[idx]
-        bi = (r // 3) * 3 + c // 3
+        bi = (r // 3)*3 + c//3
         taken = rows[r] | cols[c] | boxes[bi]
         for k in range(9):
             m = 1 << k
@@ -227,19 +227,19 @@ def solve_dp_standalone(board):
 
 def solve_backtracking_standalone(board):
     board = copy.deepcopy(board)
-    rows = [0] * 9; cols = [0] * 9; boxes = [0] * 9
+    rows = [0] *9; cols = [0] *9; boxes = [0]* 9
     empty = []
     for r in range(9):
         for c in range(9):
             if board[r][c] != 0:
                 mask = 1 << (board[r][c] - 1)
                 rows[r] |= mask; cols[c] |= mask
-                boxes[(r // 3) * 3 + c // 3] |= mask
+                boxes[(r // 3)* 3 + c //3] |= mask
             else:
                 empty.append((r, c))
 
     def count_opts(r, c):
-        taken = rows[r] | cols[c] | boxes[(r // 3) * 3 + c // 3]
+        taken = rows[r] | cols[c] | boxes[(r // 3)*3 + c //3]
         return bin(~taken & 0x1ff).count('1')
 
     empty.sort(key=lambda cell: count_opts(cell[0], cell[1]))
@@ -248,7 +248,7 @@ def solve_backtracking_standalone(board):
         if idx == len(empty):
             return True
         r, c = empty[idx]
-        bi = (r // 3) * 3 + c // 3
+        bi = (r// 3) *3 + c //3
         taken = rows[r] | cols[c] | boxes[bi]
         for k in range(9):
             m = 1 << k
@@ -266,14 +266,14 @@ def solve_backtracking_standalone(board):
 
 def solve_hybrid_standalone(board):
     board = copy.deepcopy(board)
-    for br in range(0, 9, 3):
-        for bc in range(0, 9, 3):
-            for r in range(br, br + 3):
-                for c in range(bc, bc + 3):
+    for br in range(0,9,3):
+        for bc in range(0,9,3):
+            for r in range(br,br +3):
+                for c in range(bc,bc +3):
                     if board[r][c] == 0:
-                        cands = _standalone_get_candidates(board, r, c)
-                        if len(cands) == 1:
-                            board[r][c] = cands.pop()
+                        cands = _standalone_get_candidates(board,r,c)
+                        if len(cands) ==1:
+                            board[r][c] =cands.pop()
     return solve_dp_standalone(board)
 
 
@@ -284,6 +284,9 @@ BENCHMARK_SOLVERS = {
     "Backtracking":     solve_backtracking_standalone,
     "Hybrid (D&C+DP)":  solve_hybrid_standalone,
 }
+
+from sudoku_analysis import open_analysis_window
+
 
 
 COLORS = {
