@@ -390,7 +390,7 @@ def open_benchmark_window(parent_root):
     win.resizable(False, False)
 
     tk.Label(
-        win, text="\U0001f4ca  Algorithm Comparison",
+        win, text="Algorithm Comparison",
         font=("Segoe UI", 22, "bold"), bg=BENCHMARK_BG, fg="#ffffff",
     ).pack(pady=(15, 5))
 
@@ -408,7 +408,7 @@ def open_benchmark_window(parent_root):
     btn_frame.pack(pady=10)
 
     tk.Button(
-        btn_frame, text="\U0001f680  Run Benchmark",
+        btn_frame, text="Run Benchmark",
         font=("Segoe UI", 11, "bold"),
         bg=BENCHMARK_ACCENT, fg="#ffffff",
         activebackground="#ff6b81", relief="flat",
@@ -475,7 +475,7 @@ def _build_complexity_table(parent):
 
 def _run_benchmark_thread(parent_root, status_lbl, results_frame):
     """Run the benchmark in a background thread to keep the UI responsive."""
-    status_lbl.config(text="\u23f3 Running benchmark... please wait")
+    status_lbl.config(text="Running benchmark... please wait")
 
     def worker():
         results = benchmark_all_solvers()
@@ -484,10 +484,17 @@ def _run_benchmark_thread(parent_root, status_lbl, results_frame):
     threading.Thread(target=worker, daemon=True).start()
 
 
+# Solvers shown in benchmark charts (subset of all 5)
+_BENCH_DISPLAY_SOLVERS = ["Greedy", "Backtracking", "Hybrid (D&C+DP)"]
+_BENCH_DISPLAY_LABELS  = ["Greedy", "Backtracking", "Hybrid"]
+_BENCH_DISPLAY_COLORS  = ["#3498db", "#e74c3c", "#f39c12"]
+
+
 def _display_benchmark_results(results, status_lbl, results_frame):
     """Show benchmark results as matplotlib bar charts (with text fallback)."""
-    status_lbl.config(text="\u2705 Benchmark complete!")
+    status_lbl.config(text="Benchmark complete!")
 
+    # Clear any previous results so re-running replaces rather than appends
     for child in results_frame.winfo_children():
         child.destroy()
 
@@ -500,24 +507,19 @@ def _display_benchmark_results(results, status_lbl, results_frame):
 
         fig, axes = plt.subplots(1, 3, figsize=(9.2, 3.2), dpi=100)
         fig.patch.set_facecolor(BENCHMARK_BG)
-        fig.subplots_adjust(wspace=0.35, bottom=0.28, top=0.85)
-
-        solver_names = list(BENCHMARK_SOLVERS.keys())
-        bar_colors = ["#3498db", "#9b59b6", "#2ecc71", "#e74c3c", "#f39c12"]
+        fig.subplots_adjust(wspace=0.45, bottom=0.28, top=0.85)
 
         for ax_idx, (diff_name, diff_data) in enumerate(results.items()):
             ax = axes[ax_idx]
             ax.set_facecolor("#16213e")
-            avg_times = [diff_data[s]["avg"] for s in solver_names]
-            x = np.arange(len(solver_names))
-            bars = ax.bar(x, avg_times, color=bar_colors, width=0.6,
+            avg_times = [diff_data[s]["avg"] for s in _BENCH_DISPLAY_SOLVERS]
+            x = np.arange(len(_BENCH_DISPLAY_SOLVERS))
+            bars = ax.bar(x, avg_times, color=_BENCH_DISPLAY_COLORS, width=0.5,
                           edgecolor="#ffffff", linewidth=0.5)
-            
-            # Label the bars and indicate failures with opacity & text
-            for bar, solver_name in zip(bars, solver_names):
+
+            for bar, solver_name in zip(bars, _BENCH_DISPLAY_SOLVERS):
                 val = diff_data[solver_name]["avg"]
-                sr = diff_data[solver_name]["success_rate"]
-                
+                sr  = diff_data[solver_name]["success_rate"]
                 if sr < 100:
                     bar.set_alpha(0.4)
                     label_text = f"{val:.2f}\n({sr:.0f}%)"
@@ -525,26 +527,26 @@ def _display_benchmark_results(results, status_lbl, results_frame):
                 else:
                     label_text = f"{val:.2f}"
                     text_color = "#ffffff"
-
                 ax.text(
                     bar.get_x() + bar.get_width() / 2,
                     bar.get_height() + max(avg_times) * 0.02,
                     label_text, ha="center", va="bottom",
                     fontsize=7, color=text_color, fontweight="bold",
                 )
+
             ax.set_title(diff_name, color="#ffffff", fontsize=11, fontweight="bold")
             ax.set_ylabel("Time (ms)", color="#a8b2d1", fontsize=8)
             ax.set_xticks(x)
-            ax.set_xticklabels(["Greedy", "D&C", "DP", "BT", "Hybrid"],
-                               rotation=30, ha="right", fontsize=7, color="#a8b2d1")
+            ax.set_xticklabels(_BENCH_DISPLAY_LABELS,
+                               rotation=20, ha="right", fontsize=8, color="#a8b2d1")
             ax.tick_params(axis="y", colors="#a8b2d1", labelsize=7)
             ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)
             ax.spines["left"].set_color("#a8b2d1")
             ax.spines["bottom"].set_color("#a8b2d1")
 
-        fig.suptitle("Solve Time Comparison (avg of 5 runs, in ms)",
-                     color="#ffffff", fontsize=12, fontweight="bold")
+        fig.suptitle("Solve Time Comparison — Greedy / Backtracking / Hybrid (avg of 5 runs, ms)",
+                     color="#ffffff", fontsize=11, fontweight="bold")
         canvas = FigureCanvasTkAgg(fig, master=results_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(fill="both", expand=True, pady=5)
@@ -552,7 +554,7 @@ def _display_benchmark_results(results, status_lbl, results_frame):
     except ImportError:
         tk.Label(
             results_frame,
-            text="\u26a0 matplotlib not installed \u2014 showing text results.\n"
+            text="matplotlib not installed — showing text results.\n"
                  "Install with: pip install matplotlib",
             font=("Segoe UI", 12), bg=BENCHMARK_BG, fg=BENCHMARK_ACCENT,
         ).pack(pady=10)
@@ -561,7 +563,8 @@ def _display_benchmark_results(results, status_lbl, results_frame):
                 results_frame, text=f"\n--- {diff_name} ---",
                 font=("Consolas", 11, "bold"), bg=BENCHMARK_BG, fg="#ffffff",
             ).pack(anchor="w")
-            for solver_name, stats in diff_data.items():
+            for solver_name in _BENCH_DISPLAY_SOLVERS:
+                stats = diff_data[solver_name]
                 sr = stats["success_rate"]
                 text = f"  {solver_name:20s}  avg={stats['avg']:.3f}ms  min={stats['min']:.3f}ms  Success: {sr:.0f}%"
                 if sr < 100:
@@ -1397,8 +1400,9 @@ class SudokuLauncher:
         threading.Thread(target=worker, daemon=True).start()
 
     def _display_results(self, results):
-        self.cmp_status.config(text=" Benchmark complete!")
+        self.cmp_status.config(text="Benchmark complete!")
 
+        # Clear any previous results so re-running replaces rather than appends
         for child in self.results_frame.winfo_children():
             child.destroy()
 
@@ -1411,24 +1415,19 @@ class SudokuLauncher:
 
             fig, axes = plt.subplots(1, 3, figsize=(9.2, 3.2), dpi=100)
             fig.patch.set_facecolor(BG_DARK_L)
-            fig.subplots_adjust(wspace=0.35, bottom=0.28, top=0.85)
-
-            solver_names = list(BENCHMARK_SOLVERS.keys())
-            bar_colors = ["#3498db", "#9b59b6", "#2ecc71", "#e74c3c", "#f39c12"]
+            fig.subplots_adjust(wspace=0.45, bottom=0.28, top=0.85)
 
             for ax_idx, (diff_name, diff_data) in enumerate(results.items()):
                 ax = axes[ax_idx]
                 ax.set_facecolor("#16213e")
-                avg_times = [diff_data[s]["avg"] for s in solver_names]
-                x = np.arange(len(solver_names))
-                bars = ax.bar(x, avg_times, color=bar_colors, width=0.6,
+                avg_times = [diff_data[s]["avg"] for s in _BENCH_DISPLAY_SOLVERS]
+                x = np.arange(len(_BENCH_DISPLAY_SOLVERS))
+                bars = ax.bar(x, avg_times, color=_BENCH_DISPLAY_COLORS, width=0.5,
                               edgecolor="#ffffff", linewidth=0.5)
-                
-                # Label the bars and indicate failures with opacity & text
-                for bar, solver_name in zip(bars, solver_names):
+
+                for bar, solver_name in zip(bars, _BENCH_DISPLAY_SOLVERS):
                     val = diff_data[solver_name]["avg"]
-                    sr = diff_data[solver_name]["success_rate"]
-                    
+                    sr  = diff_data[solver_name]["success_rate"]
                     if sr < 100:
                         bar.set_alpha(0.4)
                         label_text = f"{val:.2f}\n({sr:.0f}%)"
@@ -1436,39 +1435,41 @@ class SudokuLauncher:
                     else:
                         label_text = f"{val:.2f}"
                         text_color = "#ffffff"
-
                     ax.text(
                         bar.get_x() + bar.get_width() / 2,
                         bar.get_height() + max(avg_times) * 0.02,
                         label_text, ha="center", va="bottom",
                         fontsize=7, color=text_color, fontweight="bold",
                     )
+
                 ax.set_title(diff_name, color="#ffffff", fontsize=11, fontweight="bold")
                 ax.set_ylabel("Time (ms)", color="#a8b2d1", fontsize=8)
                 ax.set_xticks(x)
-                ax.set_xticklabels(["Greedy", "D&C", "DP", "BT", "Hybrid"],
-                                   rotation=30, ha="right", fontsize=7, color="#a8b2d1")
+                ax.set_xticklabels(_BENCH_DISPLAY_LABELS,
+                                   rotation=20, ha="right", fontsize=8, color="#a8b2d1")
                 ax.tick_params(axis="y", colors="#a8b2d1", labelsize=7)
                 ax.spines["top"].set_visible(False)
                 ax.spines["right"].set_visible(False)
                 ax.spines["left"].set_color("#a8b2d1")
                 ax.spines["bottom"].set_color("#a8b2d1")
 
-            fig.suptitle("Solve Time Comparison (avg of 5 runs, in ms)",
-                         color="#ffffff", fontsize=12, fontweight="bold")
+            fig.suptitle("Solve Time Comparison — Greedy / Backtracking / Hybrid (avg of 5 runs, ms)",
+                         color="#ffffff", fontsize=11, fontweight="bold")
             canvas = FigureCanvasTkAgg(fig, master=self.results_frame)
             canvas.draw()
             canvas.get_tk_widget().pack(fill="both", expand=True, pady=5)
 
         except ImportError:
             tk.Label(self.results_frame,
-                     text="⚠ matplotlib not installed — showing text results.\n"
+                     text="matplotlib not installed — showing text results.\n"
                           "Install with: pip install matplotlib",
                      font=FONT_SUBTITLE_L, bg=BG_DARK_L, fg=ACCENT_2).pack(pady=10)
+            _BENCH_DISPLAY_SOLVERS = ["Greedy", "Backtracking", "Hybrid (D&C+DP)"]
             for diff_name, diff_data in results.items():
                 tk.Label(self.results_frame, text=f"\n--- {diff_name} ---",
                          font=("Consolas", 11, "bold"), bg=BG_DARK_L, fg=TEXT_PRIMARY_L).pack(anchor="w")
-                for solver_name, stats in diff_data.items():
+                for solver_name in _BENCH_DISPLAY_SOLVERS:
+                    stats = diff_data[solver_name]
                     sr = stats["success_rate"]
                     text = f"  {solver_name:20s}  avg={stats['avg']:.3f}ms  Success: {sr:.0f}%"
                     if sr < 100:
