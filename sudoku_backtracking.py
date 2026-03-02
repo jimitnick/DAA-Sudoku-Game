@@ -356,6 +356,112 @@ def generate_benchmark_puzzle(holes=45):
     return board
 
 
+
+BENCHMARK_BG   = "#1a1a2e"
+BENCHMARK_CARD = "#16213e"
+BENCHMARK_ACCENT = "#e94560"
+
+COMPLEXITY_TABLE = [
+    ["Greedy (PQ)",      "O(n\u00b2 log n)", "Fast but incomplete",  "O(n\u00b2)",   "No backtracking; may fail"],
+    ["Divide & Conquer", "O(9^n)",      "Fast with MRV",        "O(n)",    "Recursive subproblem split"],
+    ["DP (Bitmask)",     "O(9^n)",      "Near-instant",         "O(n+27)", "O(1) constraint via bits"],
+    ["Backtracking",     "O(9^n)",      "Near-instant w/ MRV",  "O(n+27)", "Classic + bitmask + MRV"],
+    ["Hybrid (D&C+DP)",  "O(9^n)",      "Fastest practical",    "O(n+27)", "Two-phase: D&C then DP"],
+]
+
+
+def open_benchmark_window(parent_root):
+    """
+    Open a Toplevel window that benchmarks all 5 solvers and
+    displays results as a matplotlib bar chart + complexity table.
+    """
+    win = tk.Toplevel()
+    win.title("Algorithm Comparison \u2014 Sudoku Solver Benchmark")
+    win.geometry("960x800")
+    win.configure(bg=BENCHMARK_BG)
+    win.resizable(False, False)
+
+    tk.Label(
+        win, text="\U0001f4ca  Algorithm Comparison",
+        font=("Segoe UI", 22, "bold"), bg=BENCHMARK_BG, fg="#ffffff",
+    ).pack(pady=(15, 5))
+
+    status_lbl = tk.Label(
+        win, text="Click 'Run Benchmark' to start...",
+        font=("Segoe UI", 12), bg=BENCHMARK_BG, fg="#a8b2d1",
+    )
+    status_lbl.pack(pady=(0, 10))
+
+    results_frame = tk.Frame(win, bg=BENCHMARK_BG)
+    results_frame.pack(fill="both", expand=True, padx=20, pady=5)
+
+    # --- Control buttons ---
+    btn_frame = tk.Frame(win, bg=BENCHMARK_BG)
+    btn_frame.pack(pady=10)
+
+    tk.Button(
+        btn_frame, text="\U0001f680  Run Benchmark",
+        font=("Segoe UI", 11, "bold"),
+        bg=BENCHMARK_ACCENT, fg="#ffffff",
+        activebackground="#ff6b81", relief="flat",
+        padx=15, pady=6, cursor="hand2",
+        command=lambda: _run_benchmark_thread(parent_root, status_lbl, results_frame),
+    ).pack(side="left", padx=5)
+
+    tk.Button(
+        btn_frame, text="Close",
+        font=("Segoe UI", 11, "bold"),
+        bg="#8892b0", fg=BENCHMARK_BG,
+        relief="flat", padx=15, pady=6, cursor="hand2",
+        command=win.destroy,
+    ).pack(side="left", padx=5)
+
+    # --- Complexity table ---
+    _build_complexity_table(win)
+
+def _build_complexity_table(parent):
+    """Render the algorithm complexity analysis table in the given parent."""
+    table_frame = tk.Frame(parent, bg=BENCHMARK_CARD, bd=1, relief="solid")
+    table_frame.pack(fill="x", padx=20, pady=(5, 10))
+
+    tk.Label(
+        table_frame, text="Algorithm Complexity Analysis",
+        font=("Segoe UI", 13, "bold"), bg=BENCHMARK_CARD, fg="#ffffff",
+    ).pack(anchor="w", padx=10, pady=(8, 5))
+
+    headers = ["Algorithm", "Time (Worst)", "Time (Practical)", "Space", "Key Characteristic"]
+    grid_f = tk.Frame(table_frame, bg=BENCHMARK_CARD)
+    grid_f.pack(fill="x", padx=10, pady=(0, 8))
+
+    for ci, h in enumerate(headers):
+        tk.Label(
+            grid_f, text=h, font=("Segoe UI", 9, "bold"),
+            bg="#0f3460", fg="#ffffff", padx=8, pady=4, anchor="w",
+        ).grid(row=0, column=ci, sticky="nsew", padx=1, pady=1)
+
+    for ri, row_data in enumerate(COMPLEXITY_TABLE):
+        bg = BENCHMARK_CARD if ri % 2 == 0 else "#1f2b47"
+        for ci, val in enumerate(row_data):
+            tk.Label(
+                grid_f, text=val, font=("Consolas", 9),
+                bg=bg, fg="#a8b2d1", padx=8, pady=3, anchor="w",
+            ).grid(row=ri + 1, column=ci, sticky="nsew", padx=1, pady=1)
+
+    for ci in range(len(headers)):
+        grid_f.columnconfigure(ci, weight=1)
+
+    analysis = (
+        "Analysis Summary:\n"
+        "\u2022 n = number of empty cells.  All exact solvers share O(9^n) worst-case time.\n"
+        "\u2022 Greedy is the only incomplete solver \u2014 it cannot guarantee a solution.\n"
+        "\u2022 Bitmask state compression provides O(1) constraint checks vs O(n) for set-based.\n"
+        "\u2022 MRV heuristic reduces practical branching factor from 9 to ~2-3.\n"
+        "\u2022 Hybrid combines D&C subgrid decomposition with DP speed."
+    )
+    tk.Label(
+        table_frame, text=analysis, font=("Segoe UI", 9),
+        bg=BENCHMARK_CARD, fg="#8892b0", justify="left", anchor="w",
+    ).pack(anchor="w", padx=10, pady=(0, 10))
 #####
 
 from sudoku_analysis import open_analysis_window
