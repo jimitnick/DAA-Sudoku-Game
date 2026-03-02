@@ -4,13 +4,20 @@ import time
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox
-from TkToolTip import ToolTip
-import copy
+from tktooltip import ToolTip
+from tkinter import ttk
 import heapq
 from sudoku_analysis import open_analysis_window
 import random
 
 
+import random
+import copy
+import subprocess
+import sys
+import os
+import time
+import threading
 class BitmaskSolver:
 
     def __init__(self):
@@ -649,28 +656,75 @@ def benchmark_all_solvers():
     return results
 
 
+# ---------- GUI Theme Constants ----------
 
 COLORS = {
-    "bg_dark":"#0f0f1a","bg_card":"#1a1a2e","bg_cell":"#1b2838","bg_cell_hover":"#243448","bg_cell_fixed":"#141e2a","accent_blue":"#4fc3f7",
-    "accent_green":"#66bb6a","accent_red":"#ef5350","accent_orange":"#ffa726","accent_purple":"#ab47bc","accent_yellow":"#ffee58","text_primary":"#e0e0e0","text_secondary":"#90a4ae",
-    "text_fixed":"#b0bec5","text_user":"#4fc3f7","text_ai":"#ef5350","border_light":"#2a3a5e","border_block":"#0d47a1","grid_line":"#1e2d4d",
+    "bg_dark": "#0f0f1a", "bg_card": "#1a1a2e", "bg_cell": "#1b2838",
+    "bg_cell_hover": "#243448", "bg_cell_fixed": "#141e2a",
+    "accent_blue": "#4fc3f7", "accent_green": "#66bb6a",
+    "accent_red": "#ef5350", "accent_orange": "#ffa726",
+    "accent_purple": "#ab47bc", "accent_yellow": "#ffee58",
+    "text_primary": "#e0e0e0", "text_secondary": "#90a4ae",
+    "text_fixed": "#b0bec5", "text_user": "#4fc3f7", "text_ai": "#ef5350",
+    "border_light": "#2a3a5e", "border_block": "#0d47a1",
+    "grid_line": "#1e2d4d",
 }
 
-FONT_TITLE =("Segoe UI", 22, "bold")
-FONT_STATUS=("Segoe UI", 14, "bold")
-FONT_CELL=("Segoe UI", 22, "bold")
-FONT_BUTTON=("Segoe UI", 12, "bold")
-FONT_LABEL =("Segoe UI", 12)
-FONT_SMALL =("Segoe UI", 10)
+FONT_TITLE = ("Segoe UI", 22, "bold")
+FONT_STATUS = ("Segoe UI", 14, "bold")
+FONT_CELL = ("Segoe UI", 22, "bold")
+FONT_BUTTON = ("Segoe UI", 12, "bold")
+FONT_LABEL = ("Segoe UI", 12)
+FONT_SMALL = ("Segoe UI", 10)
+
+# Launcher colour palette
+BG_DARK_L      = "#1a1a2e"
+BG_CARD_L      = "#16213e"
+BG_CARD_HOVER  = "#1f3460"
+ACCENT_1       = "#0f3460"
+ACCENT_2       = "#e94560"
+ACCENT_3       = "#533483"
+TEXT_PRIMARY_L  = "#ffffff"
+TEXT_SECONDARY_L = "#a8b2d1"
+TEXT_MUTED      = "#8892b0"
+
+CARD_COLORS = [
+    ("#0f3460", "#1a5276"),
+    ("#6c3483", "#7d3c98"),
+    ("#1e8449", "#27ae60"),
+    ("#c0392b", "#e74c3c"),
+    ("#d68910", "#f39c12"),
+]
+
+FONT_TITLE_L     = ("Segoe UI", 28, "bold")
+FONT_SUBTITLE_L  = ("Segoe UI", 12)
+FONT_CARD_NAME   = ("Segoe UI", 15, "bold")
+FONT_CARD_DESC   = ("Segoe UI", 9)
+FONT_CARD_COMP   = ("Consolas", 8)
+FONT_BUTTON_L    = ("Segoe UI", 11, "bold")
+FONT_SMALL_L     = ("Segoe UI", 9)
+
+# Path setup for launching other solver files
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ALGO_FILES = {
+    "greedy":       os.path.join(SCRIPT_DIR, "sudoku_duel.py"),
+    "dnc":          os.path.join(SCRIPT_DIR, "sudoku divid and conquer.py"),
+    "dp":           os.path.join(SCRIPT_DIR, "sudoku_dp.py"),
+    "backtracking": os.path.join(SCRIPT_DIR, "sudoku_backtracking.py"),
+    "hybrid":       os.path.join(SCRIPT_DIR, "sudoku_hybrid.py"),
+}
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
+
+
+# ---------- Sudoku Duel Game (CustomTkinter) ----------
 
 class SudokuDuel:
     def __init__(self, root):
         self.root = root
         self.root.title("Sudoku Solver")
-        self.root.geometry("680x880")
+        self.root.geometry("680x780")
         self.root.configure(fg_color=COLORS["bg_dark"])
         self.root.resizable(False, False)
 
@@ -686,74 +740,61 @@ class SudokuDuel:
         self.algorithm = "Backtracking"
         self.algorithm_var = ctk.StringVar(value=self.algorithm)
 
+        self.pq = []
+        self.pq_entries = set()
+
         self.create_widgets()
-        self.render_board()
-        self._update_status()
+        self.new_game()
+
+    # ---- GUI ----
 
     def create_widgets(self):
         title_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        title_frame.pack(pady=(18, 0))
+        title_frame.pack(pady=(10, 0))
 
-        title = ctk.CTkLabel(
-            title_frame,
-            text=" Sudoku Duel",
-            font=FONT_TITLE,
-            text_color=COLORS["accent_blue"],
-        )
-        title.pack()
+        ctk.CTkLabel(
+            title_frame, text=" Sudoku Duel",
+            font=FONT_TITLE, text_color=COLORS["accent_blue"],
+        ).pack()
         self.subtitle = ctk.CTkLabel(
-            title_frame,
-            text="Backtracking",
-            font=FONT_SMALL,
-            text_color=COLORS["text_secondary"],
+            title_frame, text="Backtracking",
+            font=FONT_SMALL, text_color=COLORS["text_secondary"],
         )
         self.subtitle.pack(pady=(2, 0))
         self.status_label = ctk.CTkLabel(
-            self.root,
-            text="Your Turn",
-            font=FONT_STATUS,
-            text_color=COLORS["accent_green"],
+            self.root, text="Your Turn",
+            font=FONT_STATUS, text_color=COLORS["accent_green"],
         )
-        self.status_label.pack(pady=(12, 6))
-        diff_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        diff_frame.pack(pady=(2, 10))
+        self.status_label.pack(pady=(6, 4))
 
+        diff_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        diff_frame.pack(pady=(2, 4))
         ctk.CTkLabel(
             diff_frame, text="Difficulty",
-            font=FONT_LABEL,
-            text_color=COLORS["text_secondary"],
+            font=FONT_LABEL, text_color=COLORS["text_secondary"],
         ).pack(side="left", padx=(0, 10))
-
         self.diff_menu = ctk.CTkSegmentedButton(
-            diff_frame,
-            values=["Easy", "Medium", "Hard"],
+            diff_frame, values=["Easy", "Medium", "Hard"],
             variable=self.difficulty_var,
-            command=self._on_difficulty_change,
-            font=FONT_SMALL,
-            selected_color=COLORS["accent_blue"],
-            selected_hover_color="#3aa8d8",
+            command=self._on_difficulty_change, font=FONT_SMALL,
+            selected_color=COLORS["accent_blue"], selected_hover_color="#3aa8d8",
             unselected_color=COLORS["bg_card"],
             unselected_hover_color=COLORS["bg_cell_hover"],
             text_color=COLORS["text_primary"],
         )
         self.diff_menu.pack(side="left")
-        algo_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        algo_frame.pack(pady=(2, 10))
 
+        algo_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        algo_frame.pack(pady=(2, 4))
         ctk.CTkLabel(
             algo_frame, text="Algorithm",
-            font=FONT_LABEL,
-            text_color=COLORS["text_secondary"],
+            font=FONT_LABEL, text_color=COLORS["text_secondary"],
         ).pack(side="left", padx=(0, 10))
-
         self.algo_menu = ctk.CTkSegmentedButton(
-            algo_frame,
-            values=["Greedy", "D&C + DP", "Backtracking"],
+            algo_frame, values=["Greedy", "D&C + DP", "Backtracking"],
             variable=self.algorithm_var,
-            command=self._on_algorithm_change,
-            font=FONT_SMALL,
-            selected_color=COLORS["accent_purple"],
-            selected_hover_color="#8e24aa",
+            command=self._on_algorithm_change, font=FONT_SMALL,
+            selected_color=COLORS["accent_purple"], selected_hover_color="#8e24aa",
             unselected_color=COLORS["bg_card"],
             unselected_hover_color=COLORS["bg_cell_hover"],
             text_color=COLORS["text_primary"],
@@ -761,80 +802,67 @@ class SudokuDuel:
         self.algo_menu.pack(side="left")
 
         board_outer = ctk.CTkFrame(
-            self.root,
-            fg_color=COLORS["border_block"],
-            corner_radius=12,
+            self.root, fg_color=COLORS["border_block"], corner_radius=12,
         )
-        board_outer.pack(pady=8, padx=20)
-
+        board_outer.pack(pady=4, padx=20)
         board_inner = ctk.CTkFrame(
-            board_outer,
-            fg_color=COLORS["bg_dark"],
-            corner_radius=10,
+            board_outer, fg_color=COLORS["bg_dark"], corner_radius=10,
         )
         board_inner.pack(padx=3, pady=3)
 
-        CELL_SIZE = 55
-
+        CELL_SIZE = 45
         for i in range(9):
             for j in range(9):
                 pad_t = 4 if i % 3 == 0 and i != 0 else 1
                 pad_l = 4 if j % 3 == 0 and j != 0 else 1
-
                 cell = ctk.CTkEntry(
-                    board_inner,
-                    width=CELL_SIZE, height=CELL_SIZE,
-                    font=FONT_CELL,
-                    justify="center",
-                    corner_radius=6,
+                    board_inner, width=CELL_SIZE, height=CELL_SIZE,
+                    font=FONT_CELL, justify="center", corner_radius=6,
                     fg_color=COLORS["bg_cell"],
-                    border_color=COLORS["border_light"],
-                    border_width=1,
+                    border_color=COLORS["border_light"], border_width=1,
                     text_color=COLORS["text_primary"],
                 )
-                cell.grid(
-                    row=i, column=j,
-                    padx=(pad_l, 1),
-                    pady=(pad_t, 1),
-                )
-                cell.bind(
-                    "<KeyRelease>",
-                    lambda e, r=i, c=j: self.on_cell_edit(r, c),
-                )
+                cell.grid(row=i, column=j, padx=(pad_l, 1), pady=(pad_t, 1))
+                cell.bind("<KeyRelease>", lambda e, r=i, c=j: self.on_cell_edit(r, c))
                 self.cells[i][j] = cell
+
         btn_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        btn_frame.pack(pady=(14, 6))
+        btn_frame.pack(pady=(8, 4))
         buttons = [
-            ("  NEW GAME",  self.new_game,       COLORS["accent_green"],  "Start a fresh puzzle"),("  HINT",      self.show_hint,      COLORS["accent_blue"],   "Get a hint for the next move"),("  AI PLAY",   self.ai_play_button, COLORS["accent_red"],    "Let the AI make a move"),("  RESET",     self.reset_board,    COLORS["accent_orange"], "Reset to the starting state"),("📊 ANALYSIS", lambda: open_analysis_window(self.root), COLORS["accent_purple"], "Benchmark & compare all algorithms"),
+            ("  NEW GAME", self.new_game,       COLORS["accent_green"],  "Start a fresh puzzle"),
+            ("  HINT",     self.show_hint,      COLORS["accent_blue"],   "Get a hint for the next move"),
+            ("  AI PLAY",  self.ai_play_button, COLORS["accent_red"],    "Let the AI make a move"),
+            ("  RESET",    self.reset_board,    COLORS["accent_orange"], "Reset to the starting state"),
         ]
         for idx, (text, cmd, color, tip) in enumerate(buttons):
             btn = ctk.CTkButton(
-                btn_frame,
-                text=text,
-                command=cmd,
-                font=FONT_BUTTON,
-                fg_color=color,
-                hover_color=self._darken(color),
-                corner_radius=8,
-                width=130,
-                height=38,
-                text_color="#0f0f1a",
+                btn_frame, text=text, command=cmd, font=FONT_BUTTON,
+                fg_color=color, hover_color=self._darken(color),
+                corner_radius=8, width=130, height=38, text_color="#0f0f1a",
             )
             btn.grid(row=0, column=idx, padx=6)
             ToolTip(btn, msg=tip, delay=0.3)
 
+        # Benchmark button (Person 2 contribution)
+        bench_btn = ctk.CTkButton(
+            btn_frame, text="  BENCHMARK", command=self.open_benchmark,
+            font=FONT_BUTTON,
+            fg_color=COLORS["accent_purple"],
+            hover_color=self._darken(COLORS["accent_purple"]),
+            corner_radius=8, width=130, height=38, text_color="#0f0f1a",
+        )
+        bench_btn.grid(row=1, column=0, columnspan=4, padx=6, pady=(8, 0))
+        ToolTip(bench_btn, msg="Benchmark all 5 algorithms and compare performance", delay=0.3)
+
         self.strict_var = ctk.BooleanVar(value=False)
         strict_check = ctk.CTkCheckBox(
-            self.root,
-            text="Strict Mode  (correct values only)",
-            variable=self.strict_var,
-            font=FONT_SMALL,
+            self.root, text="Strict Mode  (correct values only)",
+            variable=self.strict_var, font=FONT_SMALL,
             text_color=COLORS["text_secondary"],
-            fg_color=COLORS["accent_purple"],
-            hover_color="#8e24aa",
+            fg_color=COLORS["accent_purple"], hover_color="#8e24aa",
             corner_radius=4,
         )
-        strict_check.pack(pady=(8, 4))
+        strict_check.pack(pady=(4, 2))
         ToolTip(strict_check, msg="Only allow correct solution values", delay=0.4)
 
     @staticmethod
@@ -858,14 +886,159 @@ class SudokuDuel:
         self.algorithm = value
         self._update_status()
 
+    # ---- Puzzle generation (delegates to Person 2 functions) ----
+
+    def _generate_puzzle(self):
+        board, solution = generate_puzzle(self.difficulty)
+        self.solution_board = solution
+        self.board = board
+        return board
+
+    # ---- Benchmark (delegates to Person 2 functions) ----
+
+    def open_benchmark(self):
+        """Open the benchmark comparison window (Person 2 contribution)."""
+        open_benchmark_window(self.root)
+
+    # ---- AI logic (delegates to Person 3 functions) ----
+
+    def initialize_priority_queue(self):
+        self.pq = []
+        self.pq_entries = set()
+        for i in range(9):
+            for j in range(9):
+                if self.board[i][j] == 0:
+                    c = get_candidates(self.board, i, j)
+                    if c:
+                        heapq.heappush(self.pq, (len(c), i, j))
+                        self.pq_entries.add((i, j))
+
+    def update_neighbors(self, row, col):
+        neighbours = set()
+        for i in range(9):
+            neighbours.add((row, i))
+            neighbours.add((i, col))
+        br, bc = 3 * (row // 3), 3 * (col // 3)
+        for i in range(br, br + 3):
+            for j in range(bc, bc + 3):
+                neighbours.add((i, j))
+        for r, c in neighbours:
+            if self.board[r][c] == 0:
+                cand = get_candidates(self.board, r, c)
+                if cand:
+                    if (r, c) not in self.pq_entries:
+                        heapq.heappush(self.pq, (len(cand), r, c))
+                        self.pq_entries.add((r, c))
+
+    def ai_make_move(self):
+        while self.pq and self.board[self.pq[0][1]][self.pq[0][2]] != 0:
+            _, r, c = heapq.heappop(self.pq)
+            self.pq_entries.discard((r, c))
+
+        if not self.pq:
+            if not self.is_complete():
+                self.initialize_priority_queue()
+                if not self.pq:
+                    return False
+            else:
+                return False
+
+        _, row, col = heapq.heappop(self.pq)
+        self.pq_entries.discard((row, col))
+
+        solved_board = solve_with_backtracking(self.board)
+
+        if solved_board:
+            correct_val = solved_board[row][col]
+            self.board[row][col] = correct_val
+            self.cells[row][col].configure(state="normal")
+            self.cells[row][col].delete(0, "end")
+            self.cells[row][col].insert(0, str(correct_val))
+            self.cells[row][col].configure(text_color=COLORS["text_ai"], state="disabled")
+            self.update_neighbors(row, col)
+            return True
+        return False
+
+    def ai_play_button(self):
+        if self.game_over:
+            return
+        self.status_label.configure(text="AI is Thinking...", text_color=COLORS["accent_red"])
+        self.root.update_idletasks()
+        self.ai_turn()
+
+    def ai_turn(self):
+        if self.game_over:
+            return
+        if not self.ai_make_move():
+            if self.is_complete():
+                self.game_over = True
+                messagebox.showinfo("Game Over", "Puzzle Complete!")
+            else:
+                messagebox.showinfo("Game Over", "AI cannot find a solution (Unsolvable state).")
+                self.new_game()
+            return
+
+        if self.is_complete():
+            self.game_over = True
+            messagebox.showinfo("Game Over", "Puzzle Complete! AI Finished it.")
+            return
+
+        self.current_turn = "user"
+        self._update_status()
+
+    # ---- User interaction ----
+
     def on_cell_edit(self, row, col):
-        pass
+        if self.game_over or self.current_turn != "user" or self.initial_board[row][col] != 0:
+            return
+        cell = self.cells[row][col]
+        v = cell.get().strip()
+        if v == "":
+            self.board[row][col] = 0
+            return
+        try:
+            num = int(v)
+            if not (1 <= num <= 9):
+                raise ValueError
+
+            if self.strict_var.get():
+                if num != self.solution_board[row][col]:
+                    messagebox.showerror("Incorrect", "Strict Mode: That is not the correct value.")
+                    cell.delete(0, "end")
+                    self.board[row][col] = 0
+                    return
+
+            if is_valid(self.board, row, col, num):
+                self.board[row][col] = num
+                self.pq_entries.discard((row, col))
+                self.update_neighbors(row, col)
+                cell.configure(text_color=COLORS["text_user"])
+
+                if self.is_complete():
+                    self.game_over = True
+                    messagebox.showinfo("Game Over", "Puzzle Complete! You Win!")
+                    return
+
+                self.current_turn = "ai"
+                self.status_label.configure(text="AI is Thinking...", text_color=COLORS["accent_red"])
+                self.root.after(300, self.ai_turn)
+            else:
+                cell.delete(0, "end")
+                self.board[row][col] = 0
+        except ValueError:
+            cell.delete(0, "end")
+
+    def is_complete(self):
+        return all(self.board[i][j] != 0 for i in range(9) for j in range(9))
+
+    # ---- Game management ----
 
     def new_game(self):
         self.game_over = False
-        self.board = [[0] * 9 for _ in range(9)]
+        self._generate_puzzle()
         self.initial_board = copy.deepcopy(self.board)
         self.current_turn = "user"
+        self.initialize_priority_queue()
         self.render_board()
         self._update_status()
 
@@ -878,27 +1051,305 @@ class SudokuDuel:
                 if self.board[i][j] != 0:
                     cell.insert(0, str(self.board[i][j]))
                     if self.initial_board[i][j] != 0:
-                        cell.configure(
-                            text_color=COLORS["text_fixed"],
-                            state="disabled",
-                        )
+                        cell.configure(text_color=COLORS["text_fixed"], state="disabled")
                     else:
                         cell.configure(text_color=COLORS["text_user"])
                 else:
                     cell.configure(fg_color=COLORS["bg_cell"])
 
     def show_hint(self):
-        pass
-
-    def ai_play_button(self):
-        pass
+        if self.game_over:
+            return
+        solved = solve_with_backtracking(self.board)
+        if not solved:
+            messagebox.showinfo("Hint", "No solution exists from this state.")
+            return
+        for r in range(9):
+            for c in range(9):
+                if self.board[r][c] == 0:
+                    for i in range(9):
+                        for j in range(9):
+                            self.cells[i][j].configure(fg_color=COLORS["bg_cell"])
+                    self.cells[r][c].configure(fg_color="#3a3a00")
+                    cand = sorted(get_candidates(self.board, r, c))
+                    messagebox.showinfo(
+                        "Hint",
+                        f"Backtracking Target:\n"
+                        f"Row {r + 1}, Col {c + 1}\n"
+                        f"Solution Value: {solved[r][c]}\n"
+                        f"Valid Options: {cand}",
+                    )
+                    return
+        messagebox.showinfo("Hint", "No empty cells remaining!")
 
     def reset_board(self):
         self.game_over = False
         self.board = copy.deepcopy(self.initial_board)
         self.current_turn = "user"
+        self.initialize_priority_queue()
         self.render_board()
         self._update_status()
+
+
+# ---------- Sudoku Launcher (Tkinter) ----------
+
+class SudokuLauncher:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Sudoku Algorithm Lab")
+        self.root.geometry("820x740")
+        self.root.configure(bg=BG_DARK_L)
+        self.root.resizable(False, False)
+        self._build_ui()
+
+    def _build_ui(self):
+        title_frame = tk.Frame(self.root, bg=BG_DARK_L)
+        title_frame.pack(fill="x", pady=(25, 5))
+        tk.Label(
+            title_frame, text="Sudoku Algorithm Lab",
+            font=FONT_TITLE_L, bg=BG_DARK_L, fg=TEXT_PRIMARY_L,
+        ).pack()
+        tk.Label(
+            title_frame,
+            text="Design & Analysis of Algorithms — Choose a solving strategy",
+            font=FONT_SUBTITLE_L, bg=BG_DARK_L, fg=TEXT_SECONDARY_L,
+        ).pack(pady=(4, 0))
+
+        tk.Frame(self.root, bg=ACCENT_2, height=2).pack(fill="x", padx=40, pady=(15, 15))
+
+        cards_frame = tk.Frame(self.root, bg=BG_DARK_L)
+        cards_frame.pack(fill="both", padx=30, pady=(0, 10))
+
+        row1 = tk.Frame(cards_frame, bg=BG_DARK_L)
+        row1.pack(fill="x", pady=(0, 10))
+        for idx in range(3):
+            self._create_card(row1, ALGO_METADATA[idx], CARD_COLORS[idx], idx)
+
+        row2 = tk.Frame(cards_frame, bg=BG_DARK_L)
+        row2.pack(fill="x", pady=(0, 10))
+        tk.Frame(row2, bg=BG_DARK_L, width=125).pack(side="left")
+        for idx in range(3, 5):
+            self._create_card(row2, ALGO_METADATA[idx], CARD_COLORS[idx], idx)
+
+        compare_frame = tk.Frame(self.root, bg=BG_DARK_L)
+        compare_frame.pack(fill="x", padx=30, pady=(10, 5))
+        tk.Button(
+            compare_frame, text="Compare All Algorithms",
+            font=("Segoe UI", 14, "bold"),
+            bg=ACCENT_2, fg=TEXT_PRIMARY_L,
+            activebackground="#ff6b81", activeforeground=TEXT_PRIMARY_L,
+            relief="flat", cursor="hand2", padx=20, pady=10,
+            command=self._open_comparison,
+        ).pack(pady=5)
+
+        tk.Label(
+            self.root,
+            text="Each option opens a new window  •  Comparison benchmarks all solvers on the same puzzles",
+            font=FONT_SMALL_L, bg=BG_DARK_L, fg=TEXT_MUTED,
+        ).pack(side="bottom", pady=10)
+
+    def _create_card(self, parent, algo, colors, idx):
+        bg_color, hover_color = colors
+        card = tk.Frame(parent, bg=bg_color, bd=0, relief="flat",
+                        padx=15, pady=12, cursor="hand2")
+        card.pack(side="left", padx=6, fill="both", expand=True)
+
+        tag_frame = tk.Frame(card, bg=bg_color)
+        tag_frame.pack(anchor="w")
+        tk.Label(tag_frame, text=f"  {algo['tag']}  ",
+                 font=("Segoe UI", 7, "bold"), bg=TEXT_PRIMARY_L, fg=bg_color).pack(side="left")
+
+        tk.Label(card, text=algo["name"], font=FONT_CARD_NAME,
+                 bg=bg_color, fg=TEXT_PRIMARY_L, anchor="w").pack(anchor="w", pady=(8, 2))
+        tk.Label(card, text=algo["desc"], font=FONT_CARD_DESC,
+                 bg=bg_color, fg=TEXT_SECONDARY_L, anchor="w", justify="left").pack(anchor="w", pady=(0, 6))
+        tk.Label(card, text=algo["time"], font=FONT_CARD_COMP,
+                 bg=bg_color, fg=TEXT_MUTED, anchor="w").pack(anchor="w")
+        tk.Label(card, text=algo["space"], font=FONT_CARD_COMP,
+                 bg=bg_color, fg=TEXT_MUTED, anchor="w").pack(anchor="w")
+
+        tk.Button(
+            card, text="Play", font=FONT_BUTTON_L,
+            bg=TEXT_PRIMARY_L, fg=bg_color, activebackground=hover_color,
+            activeforeground=TEXT_PRIMARY_L, relief="flat", cursor="hand2",
+            padx=12, pady=3,
+            command=lambda k=algo["key"]: self._launch_game(k),
+        ).pack(anchor="w", pady=(8, 0))
+
+        def on_enter(e, c=card, hc=hover_color):
+            c.config(bg=hc)
+            for child in c.winfo_children():
+                try: child.config(bg=hc)
+                except tk.TclError: pass
+                for gc in child.winfo_children():
+                    try: gc.config(bg=hc)
+                    except tk.TclError: pass
+
+        def on_leave(e, c=card, bc=bg_color):
+            c.config(bg=bc)
+            for child in c.winfo_children():
+                try: child.config(bg=bc)
+                except tk.TclError: pass
+                for gc in child.winfo_children():
+                    try: gc.config(bg=bc)
+                    except tk.TclError: pass
+
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
+        card.bind("<Button-1>", lambda e, k=algo["key"]: self._launch_game(k))
+
+    def _launch_game(self, algo_key):
+        filepath = ALGO_FILES.get(algo_key)
+        if not filepath or not os.path.exists(filepath):
+            messagebox.showerror("Error", f"Game file not found:\n{filepath}")
+            return
+        subprocess.Popen([sys.executable, filepath], cwd=SCRIPT_DIR)
+
+    def _open_comparison(self):
+        win = tk.Toplevel(self.root)
+        win.title("Algorithm Comparison — Sudoku Solver Benchmark")
+        win.geometry("950x780")
+        win.configure(bg=BG_DARK_L)
+        win.resizable(False, False)
+
+        tk.Label(win, text="  Algorithm Comparison",
+                 font=("Segoe UI", 22, "bold"), bg=BG_DARK_L, fg=TEXT_PRIMARY_L).pack(pady=(15, 5))
+
+        self.cmp_status = tk.Label(win, text="Click 'Run Benchmark' to start...",
+                                   font=FONT_SUBTITLE_L, bg=BG_DARK_L, fg=TEXT_SECONDARY_L)
+        self.cmp_status.pack(pady=(0, 10))
+
+        self.results_frame = tk.Frame(win, bg=BG_DARK_L)
+        self.results_frame.pack(fill="both", expand=True, padx=20, pady=5)
+
+        btn_frame = tk.Frame(win, bg=BG_DARK_L)
+        btn_frame.pack(pady=10)
+        tk.Button(btn_frame, text="  Run Benchmark", font=FONT_BUTTON_L,
+                  bg=ACCENT_2, fg=TEXT_PRIMARY_L, activebackground="#ff6b81",
+                  relief="flat", padx=15, pady=6, cursor="hand2",
+                  command=lambda: self._run_benchmark(win)).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Close", font=FONT_BUTTON_L,
+                  bg=TEXT_MUTED, fg=BG_DARK_L, relief="flat", padx=15, pady=6,
+                  cursor="hand2", command=win.destroy).pack(side="left", padx=5)
+
+        self._show_complexity_table(win)
+
+    def _show_complexity_table(self, parent):
+        table_frame = tk.Frame(parent, bg=BG_CARD_L, bd=1, relief="solid")
+        table_frame.pack(fill="x", padx=20, pady=(5, 10))
+
+        tk.Label(table_frame, text="Algorithm Complexity Analysis",
+                 font=("Segoe UI", 13, "bold"), bg=BG_CARD_L, fg=TEXT_PRIMARY_L).pack(anchor="w", padx=10, pady=(8, 5))
+
+        headers = ["Algorithm", "Time (Worst)", "Time (Practical)", "Space", "Key Characteristic"]
+        data = [
+            ["Greedy (PQ)",      "O(n² log n)", "Fast but incomplete",  "O(n²)",   "No backtracking; may fail"],
+            ["Divide & Conquer", "O(9^n)",      "Fast with MRV",        "O(n)",    "Recursive subproblem split"],
+            ["DP (Bitmask)",     "O(9^n)",      "Near-instant",         "O(n+27)", "O(1) constraint via bits"],
+            ["Backtracking",     "O(9^n)",      "Near-instant w/ MRV",  "O(n+27)", "Classic + bitmask + MRV"],
+            ["Hybrid (D&C+DP)",  "O(9^n)",      "Fastest practical",    "O(n+27)", "Two-phase: D&C then DP"],
+        ]
+
+        grid_frame = tk.Frame(table_frame, bg=BG_CARD_L)
+        grid_frame.pack(fill="x", padx=10, pady=(0, 8))
+
+        for ci, h in enumerate(headers):
+            tk.Label(grid_frame, text=h, font=("Segoe UI", 9, "bold"),
+                     bg=ACCENT_1, fg=TEXT_PRIMARY_L, padx=8, pady=4,
+                     relief="flat", anchor="w").grid(row=0, column=ci, sticky="nsew", padx=1, pady=1)
+
+        for ri, row_data in enumerate(data):
+            bg = BG_CARD_L if ri % 2 == 0 else "#1f2b47"
+            for ci, val in enumerate(row_data):
+                tk.Label(grid_frame, text=val, font=("Consolas", 9),
+                         bg=bg, fg=TEXT_SECONDARY_L, padx=8, pady=3,
+                         anchor="w").grid(row=ri + 1, column=ci, sticky="nsew", padx=1, pady=1)
+
+        for ci in range(len(headers)):
+            grid_frame.columnconfigure(ci, weight=1)
+
+        analysis_text = (
+            "Analysis Summary:\n"
+            "• n = number of empty cells.  All exact solvers share O(9^n) worst-case time.\n"
+            "• Greedy is the only incomplete solver — it cannot guarantee a solution.\n"
+            "• Bitmask state compression provides O(1) constraint checks vs O(n) for set-based.\n"
+            "• MRV heuristic reduces practical branching factor from 9 to ~2-3.\n"
+            "• Hybrid combines D&C's subgrid decomposition with DP's speed."
+        )
+        tk.Label(table_frame, text=analysis_text, font=("Segoe UI", 9),
+                 bg=BG_CARD_L, fg=TEXT_MUTED, justify="left", anchor="w").pack(anchor="w", padx=10, pady=(0, 10))
+
+    def _run_benchmark(self, win):
+        self.cmp_status.config(text="Running benchmark... please wait")
+        win.update_idletasks()
+
+        def worker():
+            results = benchmark_all_solvers()
+            self.root.after(0, lambda: self._display_results(results))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _display_results(self, results):
+        self.cmp_status.config(text=" Benchmark complete!")
+
+        for child in self.results_frame.winfo_children():
+            child.destroy()
+
+        try:
+            import matplotlib
+            matplotlib.use("TkAgg")
+            import matplotlib.pyplot as plt
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            import numpy as np
+
+            fig, axes = plt.subplots(1, 3, figsize=(9.2, 3.2), dpi=100)
+            fig.patch.set_facecolor(BG_DARK_L)
+            fig.subplots_adjust(wspace=0.35, bottom=0.28, top=0.85)
+
+            solver_names = list(BENCHMARK_SOLVERS.keys())
+            bar_colors = ["#3498db", "#9b59b6", "#2ecc71", "#e74c3c", "#f39c12"]
+
+            for ax_idx, (diff_name, diff_data) in enumerate(results.items()):
+                ax = axes[ax_idx]
+                ax.set_facecolor("#16213e")
+                avg_times = [diff_data[s]["avg"] for s in solver_names]
+                x = np.arange(len(solver_names))
+                bars = ax.bar(x, avg_times, color=bar_colors, width=0.6,
+                              edgecolor="#ffffff", linewidth=0.5)
+                for bar, val in zip(bars, avg_times):
+                    ax.text(bar.get_x() + bar.get_width() / 2,
+                            bar.get_height() + max(avg_times) * 0.02,
+                            f"{val:.2f}", ha="center", va="bottom",
+                            fontsize=7, color="#ffffff", fontweight="bold")
+                ax.set_title(diff_name, color="#ffffff", fontsize=11, fontweight="bold")
+                ax.set_ylabel("Time (ms)", color="#a8b2d1", fontsize=8)
+                ax.set_xticks(x)
+                ax.set_xticklabels(["Greedy", "D&C", "DP", "BT", "Hybrid"],
+                                   rotation=30, ha="right", fontsize=7, color="#a8b2d1")
+                ax.tick_params(axis="y", colors="#a8b2d1", labelsize=7)
+                ax.spines["top"].set_visible(False)
+                ax.spines["right"].set_visible(False)
+                ax.spines["left"].set_color("#a8b2d1")
+                ax.spines["bottom"].set_color("#a8b2d1")
+
+            fig.suptitle("Solve Time Comparison (avg of 5 runs, in ms)",
+                         color="#ffffff", fontsize=12, fontweight="bold")
+            canvas = FigureCanvasTkAgg(fig, master=self.results_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill="both", expand=True, pady=5)
+
+        except ImportError:
+            tk.Label(self.results_frame,
+                     text="⚠ matplotlib not installed — showing text results.\n"
+                          "Install with: pip install matplotlib",
+                     font=FONT_SUBTITLE_L, bg=BG_DARK_L, fg=ACCENT_2).pack(pady=10)
+            for diff_name, diff_data in results.items():
+                tk.Label(self.results_frame, text=f"\n--- {diff_name} ---",
+                         font=("Consolas", 11, "bold"), bg=BG_DARK_L, fg=TEXT_PRIMARY_L).pack(anchor="w")
+                for solver_name, stats in diff_data.items():
+                    text = f"  {solver_name:20s}  avg={stats['avg']:.3f}ms  min={stats['min']:.3f}ms  max={stats['max']:.3f}ms"
+                    tk.Label(self.results_frame, text=text, font=("Consolas", 9),
+                             bg=BG_DARK_L, fg=TEXT_SECONDARY_L).pack(anchor="w")
 
 
 if __name__ == "__main__":
