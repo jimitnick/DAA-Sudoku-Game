@@ -1,5 +1,5 @@
 __pycache__
 .DS_Store
 test*
-.venv
+*venv
 AI_Log*
