@@ -4,7 +4,7 @@ import time
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox
-from tktooltip import ToolTip
+from TkToolTip import ToolTip
 from tkinter import ttk
 import heapq
 from sudoku_analysis import open_analysis_window
@@ -661,6 +661,7 @@ def benchmark_all_solvers():
 COLORS = {
     "bg_dark": "#0f0f1a", "bg_card": "#1a1a2e", "bg_cell": "#1b2838",
     "bg_cell_hover": "#243448", "bg_cell_fixed": "#141e2a",
+    "bg_cell_match": "#2b3d5a",
     "accent_blue": "#4fc3f7", "accent_green": "#66bb6a",
     "accent_red": "#ef5350", "accent_orange": "#ffa726",
     "accent_purple": "#ab47bc", "accent_yellow": "#ffee58",
@@ -732,6 +733,7 @@ class SudokuDuel:
         self.initial_board = [[0] * 9 for _ in range(9)]
         self.solution_board = [[0] * 9 for _ in range(9)]
         self.cells = [[None] * 9 for _ in range(9)]
+        self.highlight_num = None
 
         self.current_turn = "user"
         self.game_over = False
@@ -956,6 +958,8 @@ class SudokuDuel:
             self.cells[row][col].insert(0, str(correct_val))
             self.cells[row][col].configure(text_color=COLORS["text_ai"], state="disabled")
             self.update_neighbors(row, col)
+            if self.highlight_num is not None:
+                self._highlight_number(self.highlight_num)
             return True
         return False
 
@@ -988,6 +992,21 @@ class SudokuDuel:
 
     # ---- User interaction ----
 
+    def _clear_number_highlights(self):
+        self.highlight_num = None
+        for i in range(9):
+            for j in range(9):
+                self.cells[i][j].configure(fg_color=COLORS["bg_cell"])
+
+    def _highlight_number(self, num):
+        self.highlight_num = num
+        for i in range(9):
+            for j in range(9):
+                if self.board[i][j] == num:
+                    self.cells[i][j].configure(fg_color=COLORS["bg_cell_match"])
+                else:
+                    self.cells[i][j].configure(fg_color=COLORS["bg_cell"])
+
     def on_cell_edit(self, row, col):
         if self.game_over or self.current_turn != "user" or self.initial_board[row][col] != 0:
             return
@@ -995,6 +1014,7 @@ class SudokuDuel:
         v = cell.get().strip()
         if v == "":
             self.board[row][col] = 0
+            self._clear_number_highlights()
             return
         try:
             num = int(v)
@@ -1006,6 +1026,7 @@ class SudokuDuel:
                     messagebox.showerror("Incorrect", "Strict Mode: That is not the correct value.")
                     cell.delete(0, "end")
                     self.board[row][col] = 0
+                    self._clear_number_highlights()
                     return
 
             if is_valid(self.board, row, col, num):
@@ -1013,6 +1034,7 @@ class SudokuDuel:
                 self.pq_entries.discard((row, col))
                 self.update_neighbors(row, col)
                 cell.configure(text_color=COLORS["text_user"])
+                self._highlight_number(num)
 
                 if self.is_complete():
                     self.game_over = True
@@ -1025,8 +1047,10 @@ class SudokuDuel:
             else:
                 cell.delete(0, "end")
                 self.board[row][col] = 0
+                self._clear_number_highlights()
         except ValueError:
             cell.delete(0, "end")
+            self._clear_number_highlights()
 
     def is_complete(self):
         return all(self.board[i][j] != 0 for i in range(9) for j in range(9))
@@ -1046,6 +1070,7 @@ class SudokuDuel:
         for i in range(9):
             for j in range(9):
                 cell = self.cells[i][j]
+                cell.configure(fg_color=COLORS["bg_cell"])
                 cell.configure(state="normal")
                 cell.delete(0, "end")
                 if self.board[i][j] != 0:
@@ -1054,8 +1079,7 @@ class SudokuDuel:
                         cell.configure(text_color=COLORS["text_fixed"], state="disabled")
                     else:
                         cell.configure(text_color=COLORS["text_user"])
-                else:
-                    cell.configure(fg_color=COLORS["bg_cell"])
+        self.highlight_num = None
 
     def show_hint(self):
         if self.game_over:
