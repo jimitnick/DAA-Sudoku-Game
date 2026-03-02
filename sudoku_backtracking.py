@@ -1,4 +1,8 @@
+import threading
+import time
+
 import customtkinter as ctk
+import tkinter as tk
 from tkinter import messagebox
 from TkToolTip import ToolTip
 import copy
@@ -462,6 +466,88 @@ def _build_complexity_table(parent):
         table_frame, text=analysis, font=("Segoe UI", 9),
         bg=BENCHMARK_CARD, fg="#8892b0", justify="left", anchor="w",
     ).pack(anchor="w", padx=10, pady=(0, 10))
+
+
+def _run_benchmark_thread(parent_root, status_lbl, results_frame):
+    """Run the benchmark in a background thread to keep the UI responsive."""
+    status_lbl.config(text="\u23f3 Running benchmark... please wait")
+
+    def worker():
+        results = benchmark_all_solvers()
+        parent_root.after(0, lambda: _display_benchmark_results(results, status_lbl, results_frame))
+
+    threading.Thread(target=worker, daemon=True).start()
+
+def _display_benchmark_results(results, status_lbl, results_frame):
+    """Show benchmark results as matplotlib bar charts (with text fallback)."""
+    status_lbl.config(text="\u2705 Benchmark complete!")
+
+    for child in results_frame.winfo_children():
+        child.destroy()
+
+    try:
+        import matplotlib
+        matplotlib.use("TkAgg")
+        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+        import numpy as np
+
+        fig, axes = plt.subplots(1, 3, figsize=(9.2, 3.2), dpi=100)
+        fig.patch.set_facecolor(BENCHMARK_BG)
+        fig.subplots_adjust(wspace=0.35, bottom=0.28, top=0.85)
+
+        solver_names = list(BENCHMARK_SOLVERS.keys())
+        bar_colors = ["#3498db", "#9b59b6", "#2ecc71", "#e74c3c", "#f39c12"]
+
+        for ax_idx, (diff_name, diff_data) in enumerate(results.items()):
+            ax = axes[ax_idx]
+            ax.set_facecolor("#16213e")
+            avg_times = [diff_data[s]["avg"] for s in solver_names]
+            x = np.arange(len(solver_names))
+            bars = ax.bar(x, avg_times, color=bar_colors, width=0.6,
+                          edgecolor="#ffffff", linewidth=0.5)
+            for bar, val in zip(bars, avg_times):
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + max(avg_times) * 0.02,
+                    f"{val:.2f}", ha="center", va="bottom",
+                    fontsize=7, color="#ffffff", fontweight="bold",
+                )
+            ax.set_title(diff_name, color="#ffffff", fontsize=11, fontweight="bold")
+            ax.set_ylabel("Time (ms)", color="#a8b2d1", fontsize=8)
+            ax.set_xticks(x)
+            ax.set_xticklabels(["Greedy", "D&C", "DP", "BT", "Hybrid"],
+                               rotation=30, ha="right", fontsize=7, color="#a8b2d1")
+            ax.tick_params(axis="y", colors="#a8b2d1", labelsize=7)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            ax.spines["left"].set_color("#a8b2d1")
+            ax.spines["bottom"].set_color("#a8b2d1")
+
+        fig.suptitle("Solve Time Comparison (avg of 5 runs, in ms)",
+                     color="#ffffff", fontsize=12, fontweight="bold")
+        canvas = FigureCanvasTkAgg(fig, master=results_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True, pady=5)
+
+    except ImportError:
+        tk.Label(
+            results_frame,
+            text="\u26a0 matplotlib not installed \u2014 showing text results.\n"
+                 "Install with: pip install matplotlib",
+            font=("Segoe UI", 12), bg=BENCHMARK_BG, fg=BENCHMARK_ACCENT,
+        ).pack(pady=10)
+        for diff_name, diff_data in results.items():
+            tk.Label(
+                results_frame, text=f"\n--- {diff_name} ---",
+                font=("Consolas", 11, "bold"), bg=BENCHMARK_BG, fg="#ffffff",
+            ).pack(anchor="w")
+            for solver_name, stats in diff_data.items():
+                text = f"  {solver_name:20s}  avg={stats['avg']:.3f}ms  min={stats['min']:.3f}ms  max={stats['max']:.3f}ms"
+                tk.Label(
+                    results_frame, text=text, font=("Consolas", 9),
+                    bg=BENCHMARK_BG, fg="#a8b2d1",
+                ).pack(anchor="w")
 #####
 
 from sudoku_analysis import open_analysis_window
