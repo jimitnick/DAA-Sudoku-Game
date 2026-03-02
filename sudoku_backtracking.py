@@ -1,143 +1,139 @@
 import threading
 import time
+import copy
+import subprocess
+import sys
+import os
+import heapq
+import random
 
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox
 from tktooltip import ToolTip
 from tkinter import ttk
-import heapq
-from sudoku_analysis import open_analysis_window
-import random
 
 
-import random
-import copy
-import subprocess
-import sys
-import os
-import time
-import threading
 class BitmaskSolver:
 
     def __init__(self):
-        self.rows=[0]*9
-        self.cols=[0]*9
-        self.boxes=[0]*9
+        self.rows = [0] * 9
+        self.cols = [0] * 9
+        self.boxes = [0] * 9
 
-    def _get_box_index(self,r,c):
-        return (r//3)*3+(c//3)
+    def _get_box_index(self, r, c):
+        return (r // 3) * 3 + (c // 3)
 
-    def _initialize_masks(self,board):
-        self.rows=[0]*9
-        self.cols=[0]*9
-        self.boxes=[0]*9
-        empty_cells=[]
+    def _initialize_masks(self, board):
+        self.rows = [0] * 9
+        self.cols = [0] * 9
+        self.boxes = [0] * 9
+        empty_cells = []
         for r in range(9):
             for c in range(9):
-                if board[r][c]!=0:
-                    val=board[r][c]-1
-                    mask=(1 << val)
-                    self.rows[r]|=mask
-                    self.cols[c]|=mask
-                    self.boxes[self._get_box_index(r, c)]|=mask
+                if board[r][c] != 0:
+                    val = board[r][c] - 1
+                    mask = (1 << val)
+                    self.rows[r] |= mask
+                    self.cols[c] |= mask
+                    self.boxes[self._get_box_index(r, c)] |= mask
                 else:
                     empty_cells.append((r, c))
         return empty_cells
 
-    def solve(self,board):
-        empty_cells=self._initialize_masks(board)
-        empty_cells.sort(key=lambda cell:self._count_options(cell[0],cell[1]))
-        if self._backtrack(board,empty_cells,0):
+    def solve(self, board):
+        empty_cells = self._initialize_masks(board)
+        empty_cells.sort(key=lambda cell: self._count_options(cell[0], cell[1]))
+        if self._backtrack(board, empty_cells, 0):
             return board
         return None
 
-    def count_solutions(self,board,limit=2):
+    def count_solutions(self, board, limit=2):
         self._initialize_masks(board)
-        empty_cells = [(r, c) for r in range(9) for c in range(9) if board[r][c]==0]
-        return self._backtrack_count(board,empty_cells,0,limit)
+        empty_cells = [(r, c) for r in range(9) for c in range(9) if board[r][c] == 0]
+        return self._backtrack_count(board, empty_cells, 0, limit)
 
-    def _count_options(self,r,c):
-        box_idx =self._get_box_index(r,c)
-        taken =self.rows[r] | self.cols[c] | self.boxes[box_idx]
-        options =0
+    def _count_options(self, r, c):
+        box_idx = self._get_box_index(r, c)
+        taken = self.rows[r] | self.cols[c] | self.boxes[box_idx]
+        options = 0
         for k in range(9):
             if not (taken & (1 << k)):
-                options +=1
+                options += 1
         return options
 
     def _backtrack(self, board, empty_cells, idx):
-        if idx ==len(empty_cells):
+        if idx == len(empty_cells):
             return True
 
-        r,c =empty_cells[idx]
-        box_idx =self._get_box_index(r,c)
+        r, c = empty_cells[idx]
+        box_idx = self._get_box_index(r, c)
         taken = self.rows[r] | self.cols[c] | self.boxes[box_idx]
 
         for k in range(9):
             mask = 1 << k
             if not (taken & mask):
-                board[r][c] =k + 1
-                self.rows[r] |=mask
-                self.cols[c] |=mask
-                self.boxes[box_idx] |=mask
+                board[r][c] = k + 1
+                self.rows[r] |= mask
+                self.cols[c] |= mask
+                self.boxes[box_idx] |= mask
 
-                if self._backtrack(board,empty_cells,idx + 1):
+                if self._backtrack(board, empty_cells, idx + 1):
                     return True
 
-                self.rows[r] &=~mask
-                self.cols[c] &=~mask
-                self.boxes[box_idx] &=~mask
-                board[r][c] =0
+                self.rows[r] &= ~mask
+                self.cols[c] &= ~mask
+                self.boxes[box_idx] &= ~mask
+                board[r][c] = 0
         return False
 
-    def _backtrack_count(self,board,empty_cells,idx,limit):
-        if idx ==len(empty_cells):
+    def _backtrack_count(self, board, empty_cells, idx, limit):
+        if idx == len(empty_cells):
             return 1
         r, c = empty_cells[idx]
-        box_idx =self._get_box_index(r, c)
-        taken =self.rows[r] | self.cols[c] | self.boxes[box_idx]
-        count =0
+        box_idx = self._get_box_index(r, c)
+        taken = self.rows[r] | self.cols[c] | self.boxes[box_idx]
+        count = 0
         for k in range(9):
-            mask =1 << k
+            mask = 1 << k
             if not (taken & mask):
-                board[r][c] =k + 1
-                self.rows[r] |=mask
-                self.cols[c] |=mask
-                self.boxes[box_idx] |=mask
-                count += self._backtrack_count(board,empty_cells,idx+1,limit)
-                self.rows[r] &=~mask
-                self.cols[c] &=~mask
-                self.boxes[box_idx] &=~mask
-                board[r][c] =0
-                if count >=limit:
+                board[r][c] = k + 1
+                self.rows[r] |= mask
+                self.cols[c] |= mask
+                self.boxes[box_idx] |= mask
+                count += self._backtrack_count(board, empty_cells, idx + 1, limit)
+                self.rows[r] &= ~mask
+                self.cols[c] &= ~mask
+                self.boxes[box_idx] &= ~mask
+                board[r][c] = 0
+                if count >= limit:
                     return count
         return count
 
 
-def _standalone_is_valid(board,row,col,num):
+def _standalone_is_valid(board, row, col, num):
     for i in range(9):
-        if board[row][i] ==num and i !=col:
+        if board[row][i] == num and i != col:
             return False
-        if board[i][col] ==num and i !=row:
+        if board[i][col] == num and i != row:
             return False
-    br, bc = 3 * (row //3), 3*(col//3)
-    for i in range(br,br + 3):
-        for j in range(bc,bc + 3):
-            if board[i][j] ==num and (i, j) !=(row,col):
+    br, bc = 3 * (row // 3), 3 * (col // 3)
+    for i in range(br, br + 3):
+        for j in range(bc, bc + 3):
+            if board[i][j] == num and (i, j) != (row, col):
                 return False
     return True
 
 
-def _standalone_get_candidates(board,row,col):
-    if board[row][col]!= 0:
+def _standalone_get_candidates(board, row, col):
+    if board[row][col] != 0:
         return set()
-    candidates =set(range(1, 10))
-    candidates -=set(board[row])
-    candidates -={board[i][col] for i in range(9)}
-    br, bc = 3*(row // 3), 3*(col // 3)
-    for i in range(br,br + 3):
-        for j in range(bc,bc + 3):
+    candidates = set(range(1, 10))
+    candidates -= set(board[row])
+    candidates -= {board[i][col] for i in range(9)}
+    br, bc = 3 * (row // 3), 3 * (col // 3)
+    for i in range(br, br + 3):
+        for j in range(bc, bc + 3):
             candidates.discard(board[i][j])
     return candidates
 
@@ -166,6 +162,7 @@ def solve_greedy_standalone(board):
 def solve_dnc_standalone(board):
     board = copy.deepcopy(board)
     return _dnc_helper(board)
+
 
 def _dnc_helper(board):
     best_cell = None
@@ -212,16 +209,16 @@ def solve_dp_standalone(board):
                 empty.append((r, c))
 
     def count_opts(r, c):
-        taken = rows[r] | cols[c] | boxes[(r//3)*3 + c//3]
+        taken = rows[r] | cols[c] | boxes[(r // 3) * 3 + c // 3]
         return bin(~taken & 0x1ff).count('1')
 
-    empty.sort(key=lambda cell: count_opts(cell[0],cell[1]))
+    empty.sort(key=lambda cell: count_opts(cell[0], cell[1]))
 
     def bt(idx):
         if idx == len(empty):
             return True
         r, c = empty[idx]
-        bi = (r // 3)*3 + c//3
+        bi = (r // 3) * 3 + c // 3
         taken = rows[r] | cols[c] | boxes[bi]
         for k in range(9):
             m = 1 << k
@@ -239,19 +236,19 @@ def solve_dp_standalone(board):
 
 def solve_backtracking_standalone(board):
     board = copy.deepcopy(board)
-    rows = [0] *9; cols = [0] *9; boxes = [0]* 9
+    rows = [0] * 9; cols = [0] * 9; boxes = [0] * 9
     empty = []
     for r in range(9):
         for c in range(9):
             if board[r][c] != 0:
                 mask = 1 << (board[r][c] - 1)
                 rows[r] |= mask; cols[c] |= mask
-                boxes[(r // 3)* 3 + c //3] |= mask
+                boxes[(r // 3) * 3 + c // 3] |= mask
             else:
                 empty.append((r, c))
 
     def count_opts(r, c):
-        taken = rows[r] | cols[c] | boxes[(r // 3)*3 + c //3]
+        taken = rows[r] | cols[c] | boxes[(r // 3) * 3 + c // 3]
         return bin(~taken & 0x1ff).count('1')
 
     empty.sort(key=lambda cell: count_opts(cell[0], cell[1]))
@@ -260,7 +257,7 @@ def solve_backtracking_standalone(board):
         if idx == len(empty):
             return True
         r, c = empty[idx]
-        bi = (r// 3) *3 + c //3
+        bi = (r // 3) * 3 + c // 3
         taken = rows[r] | cols[c] | boxes[bi]
         for k in range(9):
             m = 1 << k
@@ -278,14 +275,14 @@ def solve_backtracking_standalone(board):
 
 def solve_hybrid_standalone(board):
     board = copy.deepcopy(board)
-    for br in range(0,9,3):
-        for bc in range(0,9,3):
-            for r in range(br,br +3):
-                for c in range(bc,bc +3):
+    for br in range(0, 9, 3):
+        for bc in range(0, 9, 3):
+            for r in range(br, br + 3):
+                for c in range(bc, bc + 3):
                     if board[r][c] == 0:
-                        cands = _standalone_get_candidates(board,r,c)
-                        if len(cands) ==1:
-                            board[r][c] =cands.pop()
+                        cands = _standalone_get_candidates(board, r, c)
+                        if len(cands) == 1:
+                            board[r][c] = cands.pop()
     return solve_dp_standalone(board)
 
 
@@ -297,7 +294,6 @@ BENCHMARK_SOLVERS = {
     "Hybrid (D&C+DP)":  solve_hybrid_standalone,
 }
 
-####
 # ---------- Shared helper functions ----------
 
 def get_base_pattern():
@@ -322,6 +318,7 @@ def shuffle_board(board):
         board[i:i + 3] = block
     board = list(map(list, zip(*board)))
     return board
+
 
 def generate_puzzle(difficulty="Medium"):
     """Generate a valid Sudoku puzzle with a unique solution."""
@@ -355,6 +352,7 @@ def generate_puzzle(difficulty="Medium"):
 
     return board, solution
 
+
 def generate_benchmark_puzzle(holes=45):
     """Generate a puzzle with a given number of holes for benchmarking."""
     full = shuffle_board(get_base_pattern())
@@ -365,7 +363,6 @@ def generate_benchmark_puzzle(holes=45):
         r, c = cells[i]
         board[r][c] = 0
     return board
-
 
 
 BENCHMARK_BG   = "#1a1a2e"
@@ -430,6 +427,7 @@ def open_benchmark_window(parent_root):
     # --- Complexity table ---
     _build_complexity_table(win)
 
+
 def _build_complexity_table(parent):
     """Render the algorithm complexity analysis table in the given parent."""
     table_frame = tk.Frame(parent, bg=BENCHMARK_CARD, bd=1, relief="solid")
@@ -485,6 +483,7 @@ def _run_benchmark_thread(parent_root, status_lbl, results_frame):
 
     threading.Thread(target=worker, daemon=True).start()
 
+
 def _display_benchmark_results(results, status_lbl, results_frame):
     """Show benchmark results as matplotlib bar charts (with text fallback)."""
     status_lbl.config(text="\u2705 Benchmark complete!")
@@ -513,12 +512,25 @@ def _display_benchmark_results(results, status_lbl, results_frame):
             x = np.arange(len(solver_names))
             bars = ax.bar(x, avg_times, color=bar_colors, width=0.6,
                           edgecolor="#ffffff", linewidth=0.5)
-            for bar, val in zip(bars, avg_times):
+            
+            # Label the bars and indicate failures with opacity & text
+            for bar, solver_name in zip(bars, solver_names):
+                val = diff_data[solver_name]["avg"]
+                sr = diff_data[solver_name]["success_rate"]
+                
+                if sr < 100:
+                    bar.set_alpha(0.4)
+                    label_text = f"{val:.2f}\n({sr:.0f}%)"
+                    text_color = "#ff6b81"
+                else:
+                    label_text = f"{val:.2f}"
+                    text_color = "#ffffff"
+
                 ax.text(
                     bar.get_x() + bar.get_width() / 2,
                     bar.get_height() + max(avg_times) * 0.02,
-                    f"{val:.2f}", ha="center", va="bottom",
-                    fontsize=7, color="#ffffff", fontweight="bold",
+                    label_text, ha="center", va="bottom",
+                    fontsize=7, color=text_color, fontweight="bold",
                 )
             ax.set_title(diff_name, color="#ffffff", fontsize=11, fontweight="bold")
             ax.set_ylabel("Time (ms)", color="#a8b2d1", fontsize=8)
@@ -550,14 +562,15 @@ def _display_benchmark_results(results, status_lbl, results_frame):
                 font=("Consolas", 11, "bold"), bg=BENCHMARK_BG, fg="#ffffff",
             ).pack(anchor="w")
             for solver_name, stats in diff_data.items():
-                text = f"  {solver_name:20s}  avg={stats['avg']:.3f}ms  min={stats['min']:.3f}ms  max={stats['max']:.3f}ms"
+                sr = stats["success_rate"]
+                text = f"  {solver_name:20s}  avg={stats['avg']:.3f}ms  min={stats['min']:.3f}ms  Success: {sr:.0f}%"
+                if sr < 100:
+                    text += " [FAILED]"
                 tk.Label(
                     results_frame, text=text, font=("Consolas", 9),
-                    bg=BENCHMARK_BG, fg="#a8b2d1",
+                    bg=BENCHMARK_BG, fg="#a8b2d1" if sr == 100 else "#ff6b81",
                 ).pack(anchor="w")
-#####
 
-from sudoku_analysis import open_analysis_window
 
 def get_candidates(board, row, col):
     """Return the set of valid digits for the given cell."""
@@ -632,7 +645,7 @@ ALGO_METADATA = [
 
 
 def benchmark_all_solvers():
-    """Benchmark all solvers across Easy / Medium / Hard difficulties."""
+    """Benchmark all solvers across Easy / Medium / Hard difficulties with success tracking."""
     difficulties = {"Easy": 30, "Medium": 45, "Hard": 55}
     num_trials = 5
     results = {}
@@ -640,18 +653,26 @@ def benchmark_all_solvers():
         results[diff_name] = {}
         for solver_name in BENCHMARK_SOLVERS:
             times = []
+            successes = 0
             for _ in range(num_trials):
                 puzzle = generate_benchmark_puzzle(holes)
                 board_copy = copy.deepcopy(puzzle)
+                
                 start = time.perf_counter()
-                BENCHMARK_SOLVERS[solver_name](board_copy)
+                result = BENCHMARK_SOLVERS[solver_name](board_copy)
                 end = time.perf_counter()
+                
                 times.append((end - start) * 1000)
+                
+                if result is not None:
+                    successes += 1
+                    
             results[diff_name][solver_name] = {
                 "avg": sum(times) / len(times),
                 "min": min(times),
                 "max": max(times),
                 "times": times,
+                "success_rate": (successes / num_trials) * 100
             }
     return results
 
@@ -739,12 +760,29 @@ class SudokuDuel:
         self.difficulty_var = ctk.StringVar(value=self.difficulty)
         self.algorithm = "Backtracking"
         self.algorithm_var = ctk.StringVar(value=self.algorithm)
+        
+        self.log_filename = None
 
         self.pq = []
         self.pq_entries = set()
 
         self.create_widgets()
         self.new_game()
+
+    def _init_log_file(self):
+        """Initialise a new log file with the algorithm name and timestamp."""
+        safe_algo_name = self.algorithm.replace(" ", "_").replace("&", "and").replace("+", "plus")
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        self.log_filename = f"AI_Log_{safe_algo_name}_{timestamp}.txt"
+        with open(self.log_filename, "a", encoding="utf-8") as f:
+            f.write(f"--- Started new logging session for {self.algorithm} at {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+
+    def _log_ai(self, msg):
+        """Write an AI thinking message to the log file."""
+        if not getattr(self, 'log_filename', None):
+            self._init_log_file()
+        with open(self.log_filename, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
 
     # ---- GUI ----
 
@@ -843,7 +881,6 @@ class SudokuDuel:
             btn.grid(row=0, column=idx, padx=6)
             ToolTip(btn, msg=tip, delay=0.3)
 
-        # Benchmark button (Person 2 contribution)
         bench_btn = ctk.CTkButton(
             btn_frame, text="  BENCHMARK", command=self.open_benchmark,
             font=FONT_BUTTON,
@@ -885,8 +922,7 @@ class SudokuDuel:
     def _on_algorithm_change(self, value):
         self.algorithm = value
         self._update_status()
-
-    # ---- Puzzle generation (delegates to Person 2 functions) ----
+        self._init_log_file()
 
     def _generate_puzzle(self):
         board, solution = generate_puzzle(self.difficulty)
@@ -894,13 +930,8 @@ class SudokuDuel:
         self.board = board
         return board
 
-    # ---- Benchmark (delegates to Person 2 functions) ----
-
     def open_benchmark(self):
-        """Open the benchmark comparison window (Person 2 contribution)."""
         open_benchmark_window(self.root)
-
-    # ---- AI logic (delegates to Person 3 functions) ----
 
     def initialize_priority_queue(self):
         self.pq = []
@@ -931,33 +962,43 @@ class SudokuDuel:
                         self.pq_entries.add((r, c))
 
     def ai_make_move(self):
+        self._log_ai("AI analyzing current board state...")
         while self.pq and self.board[self.pq[0][1]][self.pq[0][2]] != 0:
             _, r, c = heapq.heappop(self.pq)
             self.pq_entries.discard((r, c))
 
         if not self.pq:
             if not self.is_complete():
+                self._log_ai("Re-evaluating priority queue for empty cells...")
                 self.initialize_priority_queue()
                 if not self.pq:
+                    self._log_ai("Board is not complete, but no valid moves left. State is unsolvable.")
                     return False
             else:
+                self._log_ai("Board is complete.")
                 return False
 
-        _, row, col = heapq.heappop(self.pq)
+        cands_len, row, col = heapq.heappop(self.pq)
         self.pq_entries.discard((row, col))
+        self._log_ai(f"AI selected cell ({row}, {col}) with {cands_len} candidate(s) using MRV heuristic.")
 
+        self._log_ai(f"Simulating full board completion to verify correct move...")
         solved_board = solve_with_backtracking(self.board)
 
         if solved_board:
             correct_val = solved_board[row][col]
+            self._log_ai(f"Simulation successful. Target value for ({row}, {col}) is {correct_val}.")
             self.board[row][col] = correct_val
             self.cells[row][col].configure(state="normal")
             self.cells[row][col].delete(0, "end")
             self.cells[row][col].insert(0, str(correct_val))
             self.cells[row][col].configure(text_color=COLORS["text_ai"], state="disabled")
+            self._log_ai(f"Updating neighbor constraints for row {row}, col {col}, and its 3x3 subgrid.")
             self.update_neighbors(row, col)
             return True
-        return False
+        else:
+            self._log_ai("Simulation failed. No valid solution exists from this board state.")
+            return False
 
     def ai_play_button(self):
         if self.game_over:
@@ -985,8 +1026,6 @@ class SudokuDuel:
 
         self.current_turn = "user"
         self._update_status()
-
-    # ---- User interaction ----
 
     def on_cell_edit(self, row, col):
         if self.game_over or self.current_turn != "user" or self.initial_board[row][col] != 0:
@@ -1031,14 +1070,13 @@ class SudokuDuel:
     def is_complete(self):
         return all(self.board[i][j] != 0 for i in range(9) for j in range(9))
 
-    # ---- Game management ----
-
     def new_game(self):
         self.game_over = False
         self._generate_puzzle()
         self.initial_board = copy.deepcopy(self.board)
         self.current_turn = "user"
         self.initialize_priority_queue()
+        self._init_log_file()
         self.render_board()
         self._update_status()
 
@@ -1316,11 +1354,26 @@ class SudokuLauncher:
                 x = np.arange(len(solver_names))
                 bars = ax.bar(x, avg_times, color=bar_colors, width=0.6,
                               edgecolor="#ffffff", linewidth=0.5)
-                for bar, val in zip(bars, avg_times):
-                    ax.text(bar.get_x() + bar.get_width() / 2,
-                            bar.get_height() + max(avg_times) * 0.02,
-                            f"{val:.2f}", ha="center", va="bottom",
-                            fontsize=7, color="#ffffff", fontweight="bold")
+                
+                # Label the bars and indicate failures with opacity & text
+                for bar, solver_name in zip(bars, solver_names):
+                    val = diff_data[solver_name]["avg"]
+                    sr = diff_data[solver_name]["success_rate"]
+                    
+                    if sr < 100:
+                        bar.set_alpha(0.4)
+                        label_text = f"{val:.2f}\n({sr:.0f}%)"
+                        text_color = "#ff6b81"
+                    else:
+                        label_text = f"{val:.2f}"
+                        text_color = "#ffffff"
+
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2,
+                        bar.get_height() + max(avg_times) * 0.02,
+                        label_text, ha="center", va="bottom",
+                        fontsize=7, color=text_color, fontweight="bold",
+                    )
                 ax.set_title(diff_name, color="#ffffff", fontsize=11, fontweight="bold")
                 ax.set_ylabel("Time (ms)", color="#a8b2d1", fontsize=8)
                 ax.set_xticks(x)
@@ -1347,9 +1400,12 @@ class SudokuLauncher:
                 tk.Label(self.results_frame, text=f"\n--- {diff_name} ---",
                          font=("Consolas", 11, "bold"), bg=BG_DARK_L, fg=TEXT_PRIMARY_L).pack(anchor="w")
                 for solver_name, stats in diff_data.items():
-                    text = f"  {solver_name:20s}  avg={stats['avg']:.3f}ms  min={stats['min']:.3f}ms  max={stats['max']:.3f}ms"
+                    sr = stats["success_rate"]
+                    text = f"  {solver_name:20s}  avg={stats['avg']:.3f}ms  Success: {sr:.0f}%"
+                    if sr < 100:
+                        text += " [FAILED]"
                     tk.Label(self.results_frame, text=text, font=("Consolas", 9),
-                             bg=BG_DARK_L, fg=TEXT_SECONDARY_L).pack(anchor="w")
+                             bg=BG_DARK_L, fg=TEXT_SECONDARY_L if sr == 100 else "#ff6b81").pack(anchor="w")
 
 
 if __name__ == "__main__":
