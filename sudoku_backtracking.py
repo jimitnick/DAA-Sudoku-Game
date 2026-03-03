@@ -235,42 +235,63 @@ def solve_dp_standalone(board):
 
 
 def solve_backtracking_standalone(board):
+    """
+    Solves a Sudoku puzzle using an optimized backtracking algorithm.
+
+    This version is highly optimized with:
+    1.  Bitmasking: For O(1) constraint checks.
+    2.  Dynamic MRV (Minimum Remaining Values): At each step, it finds the
+        cell with the fewest possible candidates to explore next. This
+        dramatically prunes the search tree compared to a static ordering
+        and efficiently handles "naked singles".
+    """
     board = copy.deepcopy(board)
-    rows = [0] * 9; cols = [0] * 9; boxes = [0] * 9
-    empty = []
+    rows, cols, boxes = [0] * 9, [0] * 9, [0] * 9
+
     for r in range(9):
         for c in range(9):
             if board[r][c] != 0:
                 mask = 1 << (board[r][c] - 1)
-                rows[r] |= mask; cols[c] |= mask
+                rows[r] |= mask
+                cols[c] |= mask
                 boxes[(r // 3) * 3 + c // 3] |= mask
-            else:
-                empty.append((r, c))
 
-    def count_opts(r, c):
-        taken = rows[r] | cols[c] | boxes[(r // 3) * 3 + c // 3]
-        return bin(~taken & 0x1ff).count('1')
+    def solve():
+        min_opts, best_cell = 10, None
+        for r in range(9):
+            for c in range(9):
+                if board[r][c] == 0:
+                    bi = (r // 3) * 3 + c // 3
+                    taken = rows[r] | cols[c] | boxes[bi]
+                    available = ~taken & 0x1ff
+                    
+                    opts = available.bit_count() if hasattr(available, 'bit_count') else bin(available).count('1')
 
-    empty.sort(key=lambda cell: count_opts(cell[0], cell[1]))
+                    if opts < min_opts:
+                        min_opts, best_cell = opts, (r, c)
+                        if min_opts == 0: return False # Contradiction
+                        if min_opts == 1: break
+            if min_opts == 1: break
 
-    def bt(idx):
-        if idx == len(empty):
-            return True
-        r, c = empty[idx]
+        if best_cell is None:
+            return True # All cells filled
+
+        r, c = best_cell
         bi = (r // 3) * 3 + c // 3
-        taken = rows[r] | cols[c] | boxes[bi]
+        available = ~(rows[r] | cols[c] | boxes[bi]) & 0x1ff
+
         for k in range(9):
             m = 1 << k
-            if not (taken & m):
+            if available & m:
                 board[r][c] = k + 1
                 rows[r] |= m; cols[c] |= m; boxes[bi] |= m
-                if bt(idx + 1):
+                if solve():
                     return True
                 rows[r] &= ~m; cols[c] &= ~m; boxes[bi] &= ~m
                 board[r][c] = 0
         return False
 
-    return board if bt(0) else None
+    return board if solve() else None
 
 
 def solve_hybrid_standalone(board):
@@ -749,9 +770,11 @@ class SudokuDuel:
     def __init__(self, root):
         self.root = root
         self.root.title("Sudoku Solver")
-        self.root.geometry("680x780")
+        screen_h = self.root.winfo_screenheight()
+        height = min(700, max(560, screen_h - 120))
+        self.root.geometry(f"680x{height}")
         self.root.configure(fg_color=COLORS["bg_dark"])
-        self.root.resizable(False, False)
+        self.root.resizable(True, True)
 
         self.board = [[0] * 9 for _ in range(9)]
         self.initial_board = [[0] * 9 for _ in range(9)]
@@ -770,6 +793,11 @@ class SudokuDuel:
 
         self.pq = []
         self.pq_entries = set()
+
+        self.main_frame = ctk.CTkScrollableFrame(
+            self.root, fg_color="transparent"
+        )
+        self.main_frame.pack(fill="both", expand=True, padx=4, pady=4)
 
         self.create_widgets()
         self.new_game()
@@ -826,7 +854,7 @@ class SudokuDuel:
     # ---- GUI ----
 
     def create_widgets(self):
-        title_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        title_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         title_frame.pack(pady=(10, 0))
 
         ctk.CTkLabel(
@@ -839,12 +867,12 @@ class SudokuDuel:
         )
         self.subtitle.pack(pady=(2, 0))
         self.status_label = ctk.CTkLabel(
-            self.root, text="Your Turn",
+            self.main_frame, text="Your Turn",
             font=FONT_STATUS, text_color=COLORS["accent_green"],
         )
         self.status_label.pack(pady=(6, 4))
 
-        diff_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        diff_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         diff_frame.pack(pady=(2, 4))
         ctk.CTkLabel(
             diff_frame, text="Difficulty",
@@ -861,7 +889,7 @@ class SudokuDuel:
         )
         self.diff_menu.pack(side="left")
 
-        algo_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        algo_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         algo_frame.pack(pady=(2, 4))
         ctk.CTkLabel(
             algo_frame, text="Algorithm",
@@ -879,7 +907,7 @@ class SudokuDuel:
         self.algo_menu.pack(side="left")
 
         board_outer = ctk.CTkFrame(
-            self.root, fg_color=COLORS["border_block"], corner_radius=12,
+            self.main_frame, fg_color=COLORS["border_block"], corner_radius=12,
         )
         board_outer.pack(pady=4, padx=20)
         board_inner = ctk.CTkFrame(
@@ -903,7 +931,7 @@ class SudokuDuel:
                 cell.bind("<KeyRelease>", lambda e, r=i, c=j: self.on_cell_edit(r, c))
                 self.cells[i][j] = cell
 
-        btn_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        btn_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         btn_frame.pack(pady=(8, 4))
         buttons = [
             ("  NEW GAME", self.new_game,       COLORS["accent_green"],  "Start a fresh puzzle"),
@@ -932,7 +960,7 @@ class SudokuDuel:
 
         self.strict_var = ctk.BooleanVar(value=False)
         strict_check = ctk.CTkCheckBox(
-            self.root, text="Strict Mode  (correct values only)",
+            self.main_frame, text="Strict Mode  (correct values only)",
             variable=self.strict_var, font=FONT_SMALL,
             text_color=COLORS["text_secondary"],
             fg_color=COLORS["accent_purple"], hover_color="#8e24aa",
@@ -1209,7 +1237,7 @@ class SudokuLauncher:
         self.root.title("Sudoku Algorithm Lab")
         self.root.geometry("820x740")
         self.root.configure(bg=BG_DARK_L)
-        self.root.resizable(False, False)
+        self.root.resizable(True, True)
         self._build_ui()
 
     def _build_ui(self):
