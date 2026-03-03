@@ -235,42 +235,63 @@ def solve_dp_standalone(board):
 
 
 def solve_backtracking_standalone(board):
+    """
+    Solves a Sudoku puzzle using an optimized backtracking algorithm.
+
+    This version is highly optimized with:
+    1.  Bitmasking: For O(1) constraint checks.
+    2.  Dynamic MRV (Minimum Remaining Values): At each step, it finds the
+        cell with the fewest possible candidates to explore next. This
+        dramatically prunes the search tree compared to a static ordering
+        and efficiently handles "naked singles".
+    """
     board = copy.deepcopy(board)
-    rows = [0] * 9; cols = [0] * 9; boxes = [0] * 9
-    empty = []
+    rows, cols, boxes = [0] * 9, [0] * 9, [0] * 9
+
     for r in range(9):
         for c in range(9):
             if board[r][c] != 0:
                 mask = 1 << (board[r][c] - 1)
-                rows[r] |= mask; cols[c] |= mask
+                rows[r] |= mask
+                cols[c] |= mask
                 boxes[(r // 3) * 3 + c // 3] |= mask
-            else:
-                empty.append((r, c))
 
-    def count_opts(r, c):
-        taken = rows[r] | cols[c] | boxes[(r // 3) * 3 + c // 3]
-        return bin(~taken & 0x1ff).count('1')
+    def solve():
+        min_opts, best_cell = 10, None
+        for r in range(9):
+            for c in range(9):
+                if board[r][c] == 0:
+                    bi = (r // 3) * 3 + c // 3
+                    taken = rows[r] | cols[c] | boxes[bi]
+                    available = ~taken & 0x1ff
+                    
+                    opts = available.bit_count() if hasattr(available, 'bit_count') else bin(available).count('1')
 
-    empty.sort(key=lambda cell: count_opts(cell[0], cell[1]))
+                    if opts < min_opts:
+                        min_opts, best_cell = opts, (r, c)
+                        if min_opts == 0: return False # Contradiction
+                        if min_opts == 1: break
+            if min_opts == 1: break
 
-    def bt(idx):
-        if idx == len(empty):
-            return True
-        r, c = empty[idx]
+        if best_cell is None:
+            return True # All cells filled
+
+        r, c = best_cell
         bi = (r // 3) * 3 + c // 3
-        taken = rows[r] | cols[c] | boxes[bi]
+        available = ~(rows[r] | cols[c] | boxes[bi]) & 0x1ff
+
         for k in range(9):
             m = 1 << k
-            if not (taken & m):
+            if available & m:
                 board[r][c] = k + 1
                 rows[r] |= m; cols[c] |= m; boxes[bi] |= m
-                if bt(idx + 1):
+                if solve():
                     return True
                 rows[r] &= ~m; cols[c] &= ~m; boxes[bi] &= ~m
                 board[r][c] = 0
         return False
 
-    return board if bt(0) else None
+    return board if solve() else None
 
 
 def solve_hybrid_standalone(board):
